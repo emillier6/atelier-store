@@ -1,11 +1,14 @@
 // Catalog reads for Server Components. Returns the storefront `Product` shape.
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { asc, desc, eq, ne, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
-import { products } from "@/db/schema";
+import { productImages, products } from "@/db/schema";
 import type { Product } from "@/lib/catalog";
 
-const withRelations = { category: true, stock: true } as const;
+const withRelations = {
+  category: true,
+  images: { orderBy: asc(productImages.position) },
+} as const;
 
 // Written with its own alias: inside `db.query.*`, interpolated columns of
 // other tables get rewritten to the root table's alias ("products").
@@ -15,12 +18,19 @@ function categoryIdBySlug(slug: string) {
 
 type ProductRow = NonNullable<
   Awaited<
-    ReturnType<typeof db.query.products.findFirst<{ with: typeof withRelations }>>
+    ReturnType<
+      typeof db.query.products.findFirst<{ with: typeof withRelations }>
+    >
   >
 >;
 
-function toProduct(row: ProductRow): Product {
-  const [image, ...gallery] = row.images;
+/** Null when the product has no images: every card and page needs one. */
+function toProduct(row: ProductRow): Product | null {
+  const [image, ...gallery] = row.images.map((i) => ({
+    src: i.url,
+    alt: i.alt,
+  }));
+  if (!image) return null;
   return {
     slug: row.slug,
     name: row.name,
@@ -30,57 +40,54 @@ function toProduct(row: ProductRow): Product {
     gallery: gallery.length > 0 ? gallery : undefined,
     badge: row.badge ?? undefined,
     sku: row.sku,
-    color: row.color,
+    color: row.colour,
     description: row.description,
     details: row.details,
     sizes: row.sizes.length > 0 ? row.sizes : undefined,
-    stock: row.stock?.quantity ?? 0,
+    stock: row.stockQuantity,
   };
+}
+
+function toProducts(rows: ProductRow[]) {
+  return rows.map(toProduct).filter((p): p is Product => p !== null);
 }
 
 export const getProduct = cache(async (slug: string) => {
   const row = await db.query.products.findFirst({
-    where: and(eq(products.slug, slug), eq(products.active, true)),
+    where: eq(products.slug, slug),
     with: withRelations,
   });
-  return row && toProduct(row);
+  return (row && toProduct(row)) ?? undefined;
 });
 
 export async function getProductSlugs() {
-  const rows = await db
-    .select({ slug: products.slug })
-    .from(products)
-    .where(eq(products.active, true));
+  const rows = await db.select({ slug: products.slug }).from(products);
   return rows.map((row) => row.slug);
 }
 
 export async function getNewArrivals(limit = 8) {
   const rows = await db.query.products.findMany({
-    where: eq(products.active, true),
     with: withRelations,
     orderBy: [desc(products.createdAt)],
     limit,
   });
-  return rows.map(toProduct);
+  return toProducts(rows);
 }
 
 export async function getProductsByCategory(slug: string, limit?: number) {
   const rows = await db.query.products.findMany({
-    where: and(
-      eq(products.active, true),
-      eq(products.categoryId, categoryIdBySlug(slug)),
-    ),
+    where: eq(products.categoryId, categoryIdBySlug(slug)),
     with: withRelations,
     orderBy: [desc(products.createdAt)],
     limit,
   });
-  return rows.map(toProduct);
+  return toProducts(rows);
 }
 
 /** Same-category products first, then the rest of the catalog. */
 export async function getRelatedProducts(product: Product, limit = 4) {
   const rows = await db.query.products.findMany({
-    where: and(eq(products.active, true), ne(products.slug, product.slug)),
+    where: ne(products.slug, product.slug),
     with: withRelations,
     orderBy: [
       desc(
@@ -90,5 +97,5 @@ export async function getRelatedProducts(product: Product, limit = 4) {
     ],
     limit,
   });
-  return rows.map(toProduct);
+  return toProducts(rows);
 }

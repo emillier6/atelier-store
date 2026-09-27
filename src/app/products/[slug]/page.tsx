@@ -12,7 +12,7 @@ import {
   getProduct,
   getProductSlugs,
   getRelatedProducts,
-} from "@/db/queries/catalog";
+} from "@/lib/products";
 import { getStockState } from "@/lib/catalog";
 import { formatPrice } from "@/lib/format";
 

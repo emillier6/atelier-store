@@ -1,13 +1,24 @@
-// Initial catalog, loaded by `pnpm db:seed`. Products are listed newest first.
-import { unsplash } from "../lib/images";
-import type { Media } from "../lib/catalog";
+/**
+ * Seeds the catalogue. Re-runnable: it clears the three catalogue tables in
+ * FK-safe order and re-inserts from the literals below. Products are listed
+ * newest first. Run with `pnpm db:seed`.
+ *
+ * Neon's HTTP driver has no interactive transactions, so everything goes
+ * through one `db.batch()`, which runs as a single transaction: a failed seed
+ * leaves the previous catalogue in place. Ids are generated here so one batch
+ * can link categories, products and images without reading anything back.
+ */
+import { db } from "../src/db";
+import { categories, productImages, products } from "../src/db/schema";
+import type { Media } from "../src/lib/catalog";
+import { unsplash } from "../src/lib/images";
 
-export type SeedCategory = { slug: string; name: string };
+type SeedCategory = { slug: string; name: string };
 
-export type SeedProduct = {
+type SeedProduct = {
   slug: string;
   name: string;
-  /** Category name, matched against `categories` below. */
+  /** Category name, matched against `seedCategories` below. */
   category: string;
   price: number; // cents
   image: Media;
@@ -21,7 +32,7 @@ export type SeedProduct = {
   stock: number;
 };
 
-export const categories: SeedCategory[] = [
+const seedCategories: SeedCategory[] = [
   { slug: "ready-to-wear", name: "Ready-to-wear" },
   { slug: "handbags", name: "Handbags" },
   { slug: "shoes", name: "Shoes" },
@@ -29,7 +40,7 @@ export const categories: SeedCategory[] = [
   { slug: "eyewear", name: "Eyewear" },
 ];
 
-export const products: SeedProduct[] = [
+const seedProducts: SeedProduct[] = [
   {
     slug: "aurelia-top-handle-bag",
     name: "Aurelia top handle bag",
@@ -346,3 +357,65 @@ export const products: SeedProduct[] = [
     },
   },
 ];
+
+// Fixed base so re-seeding doesn't reorder "New Arrivals".
+const SEEDED_AT = Date.parse("2026-09-01T00:00:00Z");
+const HOUR = 60 * 60 * 1000;
+
+async function main() {
+  const categoryRows = seedCategories.map((c, position) => ({
+    id: crypto.randomUUID(),
+    ...c,
+    position,
+  }));
+  const categoryIds = new Map(categoryRows.map((c) => [c.name, c.id]));
+
+  const productRows = seedProducts.map((p, i) => {
+    const categoryId = categoryIds.get(p.category);
+    if (categoryId === undefined) {
+      throw new Error(`Unknown category "${p.category}" for ${p.slug}`);
+    }
+    return {
+      id: crypto.randomUUID(),
+      categoryId,
+      slug: p.slug,
+      name: p.name,
+      sku: p.sku,
+      colour: p.color,
+      priceCents: p.price,
+      badge: p.badge ?? null,
+      description: p.description,
+      details: p.details,
+      sizes: p.sizes ?? [],
+      stockQuantity: p.stock,
+      createdAt: new Date(SEEDED_AT - i * HOUR),
+    };
+  });
+
+  const imageRows = seedProducts.flatMap((p, i) =>
+    [p.image, ...(p.gallery ?? [])].map((image, position) => ({
+      productId: productRows[i].id,
+      url: image.src,
+      alt: image.alt,
+      position,
+    })),
+  );
+
+  await db.batch([
+    db.delete(productImages),
+    db.delete(products),
+    db.delete(categories),
+    db.insert(categories).values(categoryRows),
+    db.insert(products).values(productRows),
+    db.insert(productImages).values(imageRows),
+  ]);
+
+  console.log(
+    `Seeded ${categoryRows.length} categories, ${productRows.length} products, ${imageRows.length} images.`,
+  );
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

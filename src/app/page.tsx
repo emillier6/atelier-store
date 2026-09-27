@@ -6,7 +6,7 @@ import { Intro } from "@/components/home/intro";
 import { NewArrivals } from "@/components/home/new-arrivals";
 import { ProductRail } from "@/components/home/product-rail";
 import { Services } from "@/components/home/services";
-import { getNewArrivals, getProductsByCategory } from "@/db/queries/catalog";
+import { getNewArrivals, getProductsByCategory } from "@/lib/products";
 
 export const revalidate = 60;
 

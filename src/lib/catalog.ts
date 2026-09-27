@@ -1,5 +1,5 @@
 // Storefront types and static editorial content. Product data lives in the
-// database; see `@/db/queries/catalog`.
+// database; see `@/lib/products`.
 import { unsplash } from "./images";
 
 export type Media = { src: string; alt: string };
