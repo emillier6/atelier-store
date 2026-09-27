@@ -1,0 +1,514 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Atelier design system
+   Monochrome, square-cornered, image-first. Type is small and tightly
+   tracked; hierarchy comes from weight, case and whitespace, not color.
+   ========================================================================== */
+
+/* --- Raw tokens ----------------------------------------------------------
+   Plain custom properties so scopes like `.theme-inverse` can swap them. */
+:root {
+  --ink: #000000;
+  --paper: #ffffff;
+  --surface: #fbfbfb; /* product tiles, image placeholders */
+  --surface-strong: #f2f2f2; /* inputs, hovered rows, skeletons */
+  --muted: #767676; /* secondary text; meets 4.5:1 on white */
+  --line: rgb(0 0 0 / 0.15); /* hairline dividers and outlines */
+  --line-strong: var(--ink); /* selected / focused outlines */
+  --scrim: rgb(0 0 0 / 0.4); /* overlays on imagery and drawers */
+  --on-media: #ffffff; /* text and icons placed over photography */
+  --danger: #b3261e;
+  --success: #1e6b3a;
+
+  /* Layout rhythm (responsive, see media queries below) */
+  --gutter: 1rem; /* page side padding */
+  --section: 3rem; /* vertical space between page sections */
+  --header-h: 4rem;
+
+  --container-max: 120rem; /* 1920px: cap for ultra-wide screens */
+  --narrow-max: 45rem; /* 720px: reading width, forms */
+}
+
+@media (width >= 48rem) {
+  :root {
+    --gutter: 2rem;
+    --section: 4rem;
+    --header-h: 4.5rem;
+  }
+}
+
+@media (width >= 90rem) {
+  :root {
+    --gutter: 4rem;
+    --section: 6rem;
+  }
+}
+
+/* Dark bands (footer, editorial blocks). Children inherit swapped tokens. */
+.theme-inverse {
+  --ink: #ffffff;
+  --paper: #000000;
+  --surface: #0d0d0d;
+  --surface-strong: #1a1a1a;
+  --muted: #a3a3a3;
+  --line: rgb(255 255 255 / 0.2);
+  --line-strong: #ffffff;
+  background-color: var(--paper);
+  color: var(--ink);
+}
+
+/* --- Tailwind theme ------------------------------------------------------ */
+@theme inline {
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-strong: var(--surface-strong);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-scrim: var(--scrim);
+  --color-on-media: var(--on-media);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  /* Aliases for libraries/snippets expecting these names */
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+
+  --font-sans: var(--font-sans-face), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display-face), ui-serif, Georgia, serif;
+
+  --spacing-gutter: var(--gutter);
+  --spacing-section: var(--section);
+  --spacing-header: var(--header-h);
+
+  --container-page: var(--container-max);
+  --container-narrow: var(--narrow-max);
+}
+
+@theme {
+  /* Breakpoints: phone < 768 ≤ tablet < 1024 ≤ desktop < 1440 ≤ wide */
+  --breakpoint-sm: 30rem;
+  --breakpoint-md: 48rem;
+  --breakpoint-lg: 64rem;
+  --breakpoint-xl: 90rem;
+  --breakpoint-2xl: 120rem;
+
+  /* Type scale. Each step bundles size, leading and tracking. */
+  --text-micro: 0.5625rem; /* 9px: tile badges */
+  --text-micro--line-height: 0.75rem;
+  --text-micro--letter-spacing: -0.03em;
+
+  --text-body-sm: 0.75rem; /* 12px: UI default: nav, cards, meta */
+  --text-body-sm--line-height: 1rem;
+  --text-body-sm--letter-spacing: -0.03em;
+
+  --text-body: 1rem; /* 16px: paragraphs, descriptions */
+  --text-body--line-height: 1.5rem;
+  --text-body--letter-spacing: -0.04em;
+
+  --text-heading: 1.25rem; /* 20px: section titles */
+  --text-heading--line-height: 1.5rem;
+  --text-heading--letter-spacing: -0.03em;
+
+  --text-lead: 1.5rem; /* 24px: light editorial intro copy */
+  --text-lead--line-height: 2rem;
+  --text-lead--letter-spacing: -0.04em;
+
+  --text-display: clamp(2.25rem, 1.5rem + 3vw, 3.5rem); /* 36→56px serif */
+  --text-display--line-height: 0.9;
+  --text-display--letter-spacing: -0.05em;
+
+  --radius-pill: 9999px;
+
+  --aspect-product: 12 / 13; /* listing tile image */
+  --aspect-portrait: 3 / 4; /* PDP gallery, editorial */
+
+  --ease-luxe: cubic-bezier(0.5, 0, 0, 1);
+  --animate-fade-in: fade-in 0.5s var(--ease-luxe) both;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+/* --- Base ---------------------------------------------------------------- */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-padding-top: var(--header-h);
+  }
+
+  body {
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    letter-spacing: var(--text-body--letter-spacing);
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background-color: var(--ink);
+    color: var(--paper);
+  }
+
+  /* Square, 1px, high-contrast focus ring everywhere */
+  :focus-visible {
+    outline: 1px solid var(--line-strong);
+    outline-offset: 2px;
+  }
+
+  img,
+  video {
+    background-color: var(--surface);
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  hr {
+    border-color: var(--line);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* --- Components ---------------------------------------------------------
+   Component classes live in a layer so utilities can override them. */
+@layer components {
+  /* Typography roles ---------------------------------------------------- */
+  .type-display {
+    font-family: var(--font-display);
+    font-size: var(--text-display);
+    line-height: var(--text-display--line-height);
+    letter-spacing: var(--text-display--letter-spacing);
+    font-weight: 400;
+    text-transform: uppercase;
+  }
+
+  /* Small bold caps: section labels, active nav item, footer headings */
+  .type-label {
+    font-size: var(--text-body-sm);
+    line-height: var(--text-body-sm--line-height);
+    letter-spacing: -0.05em;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .type-title {
+    font-size: var(--text-heading);
+    line-height: var(--text-heading--line-height);
+    letter-spacing: var(--text-heading--letter-spacing);
+    font-weight: 500;
+    text-transform: uppercase;
+  }
+
+  .type-lead {
+    font-size: var(--text-lead);
+    line-height: var(--text-lead--line-height);
+    letter-spacing: var(--text-lead--letter-spacing);
+    font-weight: 200;
+  }
+
+  .type-meta {
+    font-size: var(--text-body-sm);
+    line-height: var(--text-body-sm--line-height);
+    letter-spacing: var(--text-body-sm--letter-spacing);
+    color: var(--muted);
+  }
+
+  /* Price: same size as the name, heavier weight, tabular figures */
+  .type-price {
+    font-size: var(--text-body-sm);
+    line-height: var(--text-body-sm--line-height);
+    letter-spacing: var(--text-body-sm--letter-spacing);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Buttons -------------------------------------------------------------
+     Square, 48px tall, small bold caps. Compose: `btn btn-primary`. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 3rem;
+    padding-inline: 1.5rem;
+    border: 1px solid transparent;
+    border-radius: 0;
+    font-size: var(--text-body-sm);
+    line-height: var(--text-body-sm--line-height);
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition:
+      background-color 0.3s var(--ease-luxe),
+      color 0.3s var(--ease-luxe),
+      border-color 0.3s var(--ease-luxe),
+      opacity 0.3s var(--ease-luxe);
+
+    &:disabled,
+    &[aria-disabled="true"] {
+      cursor: not-allowed;
+      background-color: var(--surface-strong);
+      border-color: var(--surface-strong);
+      color: var(--muted);
+    }
+
+    & svg {
+      width: 1rem;
+      height: 1rem;
+      flex-shrink: 0;
+    }
+  }
+
+  .btn-primary {
+    background-color: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+
+    @media (hover: hover) {
+      &:hover:not(:disabled) {
+        opacity: 0.8;
+      }
+    }
+  }
+
+  .btn-secondary {
+    background-color: var(--paper);
+    color: var(--ink);
+    border-color: var(--ink);
+
+    @media (hover: hover) {
+      &:hover:not(:disabled) {
+        background-color: var(--ink);
+        color: var(--paper);
+      }
+    }
+  }
+
+  /* Hairline outline for low-emphasis actions (e.g. "Continue shopping") */
+  .btn-outline {
+    background-color: transparent;
+    color: var(--ink);
+    border-color: var(--line);
+
+    @media (hover: hover) {
+      &:hover:not(:disabled) {
+        border-color: var(--line-strong);
+      }
+    }
+  }
+
+  .btn-sm {
+    min-height: 2.5rem;
+    padding-inline: 1rem;
+  }
+
+  .btn-block {
+    display: flex;
+    width: 100%;
+  }
+
+  /* Round icon-only control (cart, account, carousel arrows) */
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: var(--radius-pill);
+    color: inherit;
+    cursor: pointer;
+    transition: background-color 0.3s var(--ease-luxe);
+
+    @media (hover: hover) {
+      &:hover {
+        background-color: color-mix(in srgb, currentColor 8%, transparent);
+      }
+    }
+
+    & svg {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+  }
+
+  /* Links ---------------------------------------------------------------
+     Inline/CTA links are always underlined; the underline drops on hover. */
+  .link {
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.25em;
+    transition: text-decoration-color 0.3s var(--ease-luxe);
+
+    @media (hover: hover) {
+      &:hover {
+        text-decoration-color: transparent;
+      }
+    }
+  }
+
+  /* Navigation links: no underline, muted until hovered or current */
+  .link-nav {
+    color: var(--muted);
+    transition: color 0.3s var(--ease-luxe);
+
+    @media (hover: hover) {
+      &:hover {
+        color: var(--ink);
+      }
+    }
+
+    &[aria-current="page"],
+    &[data-active="true"] {
+      color: var(--ink);
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+  }
+
+  /* Form field: square, hairline border that goes solid on focus */
+  .field {
+    width: 100%;
+    min-height: 3rem;
+    padding-inline: 1rem;
+    border: 1px solid var(--line);
+    border-radius: 0;
+    background-color: var(--paper);
+    font-size: var(--text-body-sm);
+    color: var(--ink);
+    transition: border-color 0.3s var(--ease-luxe);
+
+    &::placeholder {
+      color: var(--muted);
+    }
+
+    &:focus {
+      outline: none;
+      border-color: var(--line-strong);
+    }
+
+    &[aria-invalid="true"] {
+      border-color: var(--danger);
+    }
+  }
+}
+
+/* --- Layout primitives --------------------------------------------------
+   Utilities, so they compose with responsive variants (e.g. `lg:span-feature`). */
+
+/* Standard page width: full-bleed up to 1920px with responsive gutters */
+@utility container-page {
+  width: 100%;
+  max-width: var(--container-max);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* Reading/form width, still gutter-padded on small screens */
+@utility container-narrow {
+  width: 100%;
+  max-width: calc(var(--narrow-max) + 2 * var(--gutter));
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* Edge-to-edge: hero imagery and product grids ignore gutters */
+@utility container-bleed {
+  width: 100%;
+  max-width: var(--container-max);
+  margin-inline: auto;
+}
+
+@utility section {
+  padding-block: var(--section);
+}
+
+/* Product grid: touching tiles split by a 1px hairline.
+   2 cols phone, 3 tablet, 4 desktop. */
+@utility grid-products {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background-color: var(--line);
+
+  & > * {
+    background-color: var(--paper);
+  }
+
+  @media (width >= 48rem) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  @media (width >= 64rem) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Editorial tile that takes a 2×2 slot inside grid-products */
+@utility span-feature {
+  grid-column: span 2 / span 2;
+  grid-row: span 2 / span 2;
+}
+
+/* Vertical rhythm: `stack` + `gap-*` */
+@utility stack {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Horizontal wrap group: toolbars, chips, icon rows */
+@utility cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Horizontal scroller for sub-navigation and carousels */
+@utility scroller-x {
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  & > * {
+    flex-shrink: 0;
+    scroll-snap-align: start;
+  }
+}
+
+/* Divider helpers using the hairline token */
+@utility hairline-t {
+  border-top: 1px solid var(--line);
+}
+
+@utility hairline-b {
+  border-bottom: 1px solid var(--line);
+}
+
+@utility hairline {
+  border: 1px solid var(--line);
+}
