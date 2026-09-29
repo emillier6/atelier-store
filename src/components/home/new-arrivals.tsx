@@ -10,12 +10,12 @@ export function NewArrivals({ products }: { products: Product[] }) {
       <SectionHeader
         title="New Arrivals"
         meta={`${products.length} pieces`}
-        action={{ label: "View all", href: "/collections/new-in" }}
+        action={{ label: "View all", href: "/new-arrivals" }}
       />
       <ul className="container-bleed grid-products hairline-t">
         <li className="span-feature">
           <Link
-            href={`/collections/${feature.slug}`}
+            href="/new-arrivals"
             className="group relative block h-full min-h-[28rem] overflow-hidden bg-surface text-on-media"
           >
             <Image

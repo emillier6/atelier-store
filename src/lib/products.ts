@@ -2,7 +2,7 @@
 import { asc, desc, eq, ne, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
-import { productImages, products } from "@/db/schema";
+import { categories, productImages, products } from "@/db/schema";
 import type { Product } from "@/lib/catalog";
 
 const withRelations = {
@@ -59,6 +59,22 @@ export const getProduct = cache(async (slug: string) => {
   });
   return (row && toProduct(row)) ?? undefined;
 });
+
+export const getCategory = cache(async (slug: string) => {
+  const [row] = await db
+    .select({ slug: categories.slug, name: categories.name })
+    .from(categories)
+    .where(eq(categories.slug, slug));
+  return row;
+});
+
+/** Every category in house order: slugs for generateStaticParams, names for links. */
+export async function getCategories() {
+  return db
+    .select({ slug: categories.slug, name: categories.name })
+    .from(categories)
+    .orderBy(asc(categories.position));
+}
 
 export async function getProductSlugs() {
   const rows = await db.select({ slug: products.slug }).from(products);

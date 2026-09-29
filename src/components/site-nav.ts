@@ -1,5 +1,5 @@
 export const primaryNav = [
-  { label: "New In", href: "/collections/new-in" },
+  { label: "New In", href: "/new-arrivals" },
   { label: "Women", href: "/collections/women" },
   { label: "Men", href: "/collections/men" },
   { label: "Handbags", href: "/collections/handbags" },
