@@ -1,5 +1,6 @@
 import "server-only";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { cache } from "react";
 import type { BatchItem } from "drizzle-orm/batch";
 import { db } from "@/db";
 import {
@@ -20,6 +21,18 @@ import { getStripe } from "@/lib/stripe";
  * checkout.session.async_payment_succeeded for one session. The unique
  * orders.stripe_checkout_session_id makes the second run a no-op.
  */
+
+/** The customer's order for a Checkout Session, with its lines. */
+export const getOrderBySession = cache(
+  async (userId: string, sessionId: string) =>
+    db.query.orders.findFirst({
+      where: and(
+        eq(orders.stripeCheckoutSessionId, sessionId),
+        eq(orders.userId, userId),
+      ),
+      with: { items: true },
+    }),
+);
 
 const UNIQUE_VIOLATION = "23505";
 
