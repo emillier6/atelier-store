@@ -6,6 +6,7 @@ import * as schema from "@/db/schema";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg", schema }),
+  emailAndPassword: { enabled: true },
   // nextCookies must stay last so it can set cookies from server actions.
   plugins: [nextCookies()],
 });
