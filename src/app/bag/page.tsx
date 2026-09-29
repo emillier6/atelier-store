@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BagLineItem } from "@/components/bag/bag-line-item";
+import { CheckoutButton } from "@/components/bag/checkout-button";
 import { ListingHeader, pieceCount } from "@/components/listing-header";
 import { getBag } from "@/lib/cart";
 import { formatPrice } from "@/lib/format";
@@ -8,14 +9,24 @@ import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Bag" };
 
-export default async function BagPage() {
+export default async function BagPage({ searchParams }: PageProps<"/bag">) {
   const user = await requireUser("/bag");
-  const bag = await getBag(user.id);
+  const [{ cancelled }, bag] = await Promise.all([
+    searchParams,
+    getBag(user.id),
+  ]);
   const blocked = bag.lines.some((line) => line.unavailable);
 
   return (
     <main className="flex-1 pb-section">
       <ListingHeader title="Bag" meta={pieceCount(bag.itemCount)} />
+
+      {cancelled && bag.lines.length > 0 && (
+        <p role="status" className="container-page pb-6 text-body-sm">
+          Checkout was cancelled and you have not been charged. Your bag is
+          as you left it.
+        </p>
+      )}
 
       {bag.lines.length === 0 ? (
         <div className="container-page stack items-start gap-6 hairline-t pt-8">
@@ -56,6 +67,7 @@ export default async function BagPage() {
                 bag. Update them above to check out.
               </p>
             )}
+            <CheckoutButton disabled={blocked} />
             <Link href="/new-arrivals" className="btn btn-outline btn-block">
               Continue shopping
             </Link>

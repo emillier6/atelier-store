@@ -205,6 +205,73 @@ export const cartItems = pgTable(
 );
 
 /* ------------------------------------------------------------------------ *
+ * Orders
+ * ------------------------------------------------------------------------ */
+
+/** One row per paid Stripe Checkout Session, written by the webhook. */
+export const orders = pgTable(
+  "orders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /* restrict, not cascade: an order is a record of money taken, so a
+       customer with orders can't be deleted by accident. */
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
+    /**
+     * Stripe retries webhooks and can send two success events for one
+     * session; this unique turns every repeat into a no-op.
+     */
+    stripeCheckoutSessionId: text("stripe_checkout_session_id")
+      .notNull()
+      .unique(),
+    stripePaymentIntentId: text("stripe_payment_intent_id"),
+    /** The address Stripe charged, which may differ from user.email. */
+    email: text("email").notNull(),
+    /** What Stripe charged; never recomputed from the lines. */
+    totalCents: integer("total_cents").notNull(),
+    currency: text("currency").default("usd").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("orders_user_id_idx").on(table.userId),
+    index("orders_created_at_idx").on(table.createdAt.desc()),
+  ],
+);
+
+/**
+ * A snapshot of each line at purchase time. Products get re-priced, renamed
+ * and deleted; the receipt must still show what was bought and paid.
+ */
+export const orderItems = pgTable(
+  "order_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    /* set null: deleting a product must not erase the line it was sold on. */
+    productId: uuid("product_id").references(() => products.id, {
+      onDelete: "set null",
+    }),
+    productSlug: text("product_slug").notNull(),
+    name: text("name").notNull(),
+    sku: text("sku").notNull(),
+    colour: text("colour").notNull(),
+    /** The size bought; null for one-size pieces. Not in the tutorial. */
+    size: text("size"),
+    imageUrl: text("image_url"),
+    unitPriceCents: integer("unit_price_cents").notNull(),
+    quantity: integer("quantity").notNull(),
+    /* What Stripe charged for the line, not unit × quantity. */
+    lineTotalCents: integer("line_total_cents").notNull(),
+  },
+  (table) => [index("order_items_order_id_idx").on(table.orderId)],
+);
+
+/* ------------------------------------------------------------------------ *
  * Relations
  * ------------------------------------------------------------------------ */
 
@@ -235,6 +302,18 @@ export const cartItemsRelations = relations(cartItems, ({ one }) => ({
   cart: one(carts, { fields: [cartItems.cartId], references: [carts.id] }),
   product: one(products, {
     fields: [cartItems.productId],
+    references: [products.id],
+  }),
+}));
+
+export const ordersRelations = relations(orders, ({ many }) => ({
+  items: many(orderItems),
+}));
+
+export const orderItemsRelations = relations(orderItems, ({ one }) => ({
+  order: one(orders, { fields: [orderItems.orderId], references: [orders.id] }),
+  product: one(products, {
+    fields: [orderItems.productId],
     references: [products.id],
   }),
 }));

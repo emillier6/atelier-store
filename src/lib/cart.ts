@@ -52,6 +52,7 @@ export async function getBag(userId: string): Promise<Bag> {
     const [image] = product.images;
     return {
       id: item.id,
+      productId: product.id,
       slug: product.slug,
       name: product.name,
       color: product.colour,

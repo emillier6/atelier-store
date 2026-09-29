@@ -11,6 +11,7 @@ export const MAX_QUANTITY = 10;
 export type BagLine = {
   /** cart_items.id: the handle the quantity and remove forms post back. */
   id: string;
+  productId: string;
   slug: string;
   name: string;
   color: string;
