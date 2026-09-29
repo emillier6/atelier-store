@@ -135,3 +135,13 @@ export async function signUp(
   // Outside the try: redirect() throws to navigate.
   redirect(safeNextPath(formData.get("next")));
 }
+
+export async function signOut() {
+  try {
+    await auth.api.signOut({ headers: await headers() });
+  } catch (error) {
+    // The cookie is cleared either way; the session row expires on its own.
+    if (!isAPIError(error)) throw error;
+  }
+  redirect("/");
+}

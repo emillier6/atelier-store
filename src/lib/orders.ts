@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { cache } from "react";
 import type { BatchItem } from "drizzle-orm/batch";
 import { db } from "@/db";
@@ -33,6 +33,15 @@ export const getOrderBySession = cache(
       with: { items: true },
     }),
 );
+
+/** Every order the customer has placed, newest first, with its lines. */
+export async function getOrdersForUser(userId: string) {
+  return db.query.orders.findMany({
+    where: eq(orders.userId, userId),
+    orderBy: desc(orders.createdAt),
+    with: { items: true },
+  });
+}
 
 const UNIQUE_VIOLATION = "23505";
 
