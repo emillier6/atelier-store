@@ -448,10 +448,14 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1px;
-  background-color: var(--line);
+  /* Each cell's 1px outline fills the 1px gap, so hairlines only appear
+     between real cells: empty slots in a short last row stay blank. The
+     clip hides the outlines on the grid's outer edges. */
+  overflow: hidden;
 
   & > * {
     background-color: var(--paper);
+    outline: 1px solid var(--line);
   }
 
   @media (width >= 48rem) {
