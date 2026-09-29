@@ -8,6 +8,13 @@
       "when": 1790531289220,
       "tag": "0000_mushy_stryfe",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790704343519,
+      "tag": "0001_greedy_meltdown",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,6 @@
 import "server-only";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { cache } from "react";
 import { auth } from "@/lib/auth";
 
@@ -11,6 +12,16 @@ export const getCurrentUser = cache(async () => {
   const session = await auth.api.getSession({ headers: await headers() });
   return session?.user ?? null;
 });
+
+/**
+ * The signed-in customer, or a redirect to /sign-in that comes back to
+ * `nextPath`. This is the check that protects a page or action.
+ */
+export async function requireUser(nextPath: string) {
+  const user = await getCurrentUser();
+  if (!user) redirect(`/sign-in?next=${encodeURIComponent(nextPath)}`);
+  return user;
+}
 
 /** Where `?next=` lands when it is missing or untrustworthy. */
 const FALLBACK_PATH = "/";

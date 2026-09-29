@@ -151,6 +151,60 @@ export const productImages = pgTable(
 );
 
 /* ------------------------------------------------------------------------ *
+ * Bag
+ * ------------------------------------------------------------------------ */
+
+/** One bag per customer; the unique userId stops a race making a second. */
+export const carts = pgTable("carts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .unique()
+    .references(() => user.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+/**
+ * No price column: amounts are read live from products.price_cents when the
+ * bag renders and again at checkout, so a stale bag can't carry a stale price.
+ */
+export const cartItems = pgTable(
+  "cart_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    cartId: uuid("cart_id")
+      .notNull()
+      .references(() => carts.id, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    /** One of products.sizes; null for one-size pieces. Not in the tutorial. */
+    size: text("size"),
+    quantity: integer("quantity").default(1).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("cart_items_cart_id_idx").on(table.cartId),
+    /* Adding the same piece in the same size bumps the quantity instead of
+       adding a line. NULLS NOT DISTINCT makes that hold for size = null too. */
+    unique("cart_items_cart_id_product_id_size_key")
+      .on(table.cartId, table.productId, table.size)
+      .nullsNotDistinct(),
+    check("cart_items_quantity_check", sql`${table.quantity} > 0`),
+  ],
+);
+
+/* ------------------------------------------------------------------------ *
  * Relations
  * ------------------------------------------------------------------------ */
 
@@ -169,6 +223,18 @@ export const productsRelations = relations(products, ({ one, many }) => ({
 export const productImagesRelations = relations(productImages, ({ one }) => ({
   product: one(products, {
     fields: [productImages.productId],
+    references: [products.id],
+  }),
+}));
+
+export const cartsRelations = relations(carts, ({ many }) => ({
+  items: many(cartItems),
+}));
+
+export const cartItemsRelations = relations(cartItems, ({ one }) => ({
+  cart: one(carts, { fields: [cartItems.cartId], references: [carts.id] }),
+  product: one(products, {
+    fields: [cartItems.productId],
     references: [products.id],
   }),
 }));

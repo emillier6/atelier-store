@@ -80,7 +80,7 @@ export function SiteHeader() {
             >
               <UserIcon />
             </Link>
-            <Link href="/cart" className="btn-icon" aria-label="Shopping bag">
+            <Link href="/bag" className="btn-icon" aria-label="Shopping bag">
               <BagIcon />
             </Link>
           </nav>

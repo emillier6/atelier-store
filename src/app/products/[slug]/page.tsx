@@ -96,7 +96,11 @@ export default async function ProductPage({
 
             <div className="stack gap-4">
               <StockStatus state={stockState} stock={product.stock} />
-              <ProductPurchase sizes={product.sizes} stockState={stockState} />
+              <ProductPurchase
+                slug={product.slug}
+                sizes={product.sizes}
+                stockState={stockState}
+              />
             </div>
 
             <ul className="stack gap-3 text-body-sm">
