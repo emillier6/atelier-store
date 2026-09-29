@@ -25,6 +25,12 @@ const MAX_EMAIL_LENGTH = 254;
 const MAX_PASSWORD_LENGTH = 128;
 const MAX_NAME_LENGTH = 80;
 
+/**
+ * One message for every sign-in failure. Better Auth already answers the same
+ * way for an unknown email and a wrong password; saying which would let anyone
+ * test whether an address has an account.
+ */
+const SIGN_IN_ERROR = "Email or password is incorrect.";
 const PASSWORD_LENGTH_ERROR = `Choose a password between ${MIN_PASSWORD_LENGTH} and ${MAX_PASSWORD_LENGTH} characters.`;
 
 function readText(formData: FormData, key: string) {
@@ -54,6 +60,29 @@ function errorCode(error: unknown) {
   if (!isAPIError(error)) return null;
   const code = (error.body as { code?: unknown } | undefined)?.code;
   return typeof code === "string" ? code : "";
+}
+
+export async function signIn(
+  _prev: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const submitted = { email: readText(formData, "email") };
+  const email = readEmail(formData);
+  const password = readPassword(formData);
+  // Neither can match an account, so give the same answer as a wrong password.
+  if (!email || !password) return { ...submitted, error: SIGN_IN_ERROR };
+
+  try {
+    await auth.api.signInEmail({
+      body: { email, password },
+      headers: await headers(),
+    });
+  } catch (error) {
+    if (isAPIError(error)) return { ...submitted, error: SIGN_IN_ERROR };
+    throw error;
+  }
+
+  redirect(safeNextPath(formData.get("next")));
 }
 
 export async function signUp(

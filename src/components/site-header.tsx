@@ -153,7 +153,7 @@ function SiteMenu({ onClose }: { onClose: () => void }) {
         </nav>
 
         <div className="stack hairline-t gap-3 px-gutter py-8 text-body-sm">
-          <Link href="/account" onClick={onClose} className="link w-fit">
+          <Link href="/sign-in" onClick={onClose} className="link w-fit">
             Sign in
           </Link>
           <Link href="/contact" onClick={onClose} className="link w-fit">
