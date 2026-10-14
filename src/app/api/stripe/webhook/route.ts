@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import type Stripe from "stripe";
 import { fulfillCheckoutSession } from "@/lib/orders";
 import { getStripe, webhookSecret } from "@/lib/stripe";
@@ -26,11 +27,12 @@ export async function POST(request: Request) {
     return new Response("Invalid signature", { status: 400 });
   }
 
+  let changedPaths: string[] = [];
   try {
     switch (event.type) {
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded":
-        await fulfillCheckoutSession(event.data.object.id);
+        changedPaths = await fulfillCheckoutSession(event.data.object.id);
         break;
       case "checkout.session.async_payment_failed":
         // No order and the bag is untouched, so the customer can try again.
@@ -41,6 +43,15 @@ export async function POST(request: Request) {
     // 500 makes Stripe retry, which is safe: fulfilment is idempotent.
     console.error("Stripe webhook handler failed", event.type, error);
     return new Response("Handler error", { status: 500 });
+  }
+
+  // Outside the try above: the order is written by now, so a failed cache
+  // refresh must not answer 500 and make Stripe redeliver. The pages fall
+  // back to their 60s revalidate.
+  try {
+    for (const path of changedPaths) revalidatePath(path);
+  } catch (error) {
+    console.error("Catalogue revalidation failed", changedPaths, error);
   }
 
   return new Response(null, { status: 200 });

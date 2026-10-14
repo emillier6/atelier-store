@@ -53,25 +53,31 @@ function isUniqueViolation(error: unknown) {
   return false;
 }
 
-export async function fulfillCheckoutSession(sessionId: string) {
+/**
+ * Writes the order for a paid session. Returns the catalogue paths whose
+ * stock it changed, or [] when there was nothing new to write.
+ */
+export async function fulfillCheckoutSession(
+  sessionId: string,
+): Promise<string[]> {
   const [existing] = await db
     .select({ id: orders.id })
     .from(orders)
     .where(eq(orders.stripeCheckoutSessionId, sessionId));
-  if (existing) return;
+  if (existing) return [];
 
   const session = await getStripe().checkout.sessions.retrieve(sessionId, {
     expand: ["line_items.data.price.product"],
   });
   // With delayed payment methods, `completed` arrives before the money does.
-  if (session.payment_status === "unpaid") return;
+  if (session.payment_status === "unpaid") return [];
 
   const userId = session.client_reference_id;
   const stripeLines = session.line_items?.data ?? [];
   if (!userId || stripeLines.length === 0) {
     // What a synthetic `stripe trigger` event looks like; nothing to fulfil.
     console.info("Stripe session has no user or lines, skipped", sessionId);
-    return;
+    return [];
   }
 
   // Amounts come from Stripe: what was charged is what the receipt says.
@@ -98,7 +104,10 @@ export async function fulfillCheckoutSession(sessionId: string) {
     ? await db.query.products.findMany({
         where: inArray(products.id, productIds),
         columns: { id: true, slug: true, name: true, sku: true, colour: true },
-        with: { images: { orderBy: asc(productImages.position), limit: 1 } },
+        with: {
+          images: { orderBy: asc(productImages.position), limit: 1 },
+          category: { columns: { slug: true } },
+        },
       })
     : [];
   const byId = new Map(catalogue.map((row) => [row.id, row]));
@@ -124,7 +133,8 @@ export async function fulfillCheckoutSession(sessionId: string) {
   });
 
   const inCatalogue = lines.filter((line) => line.productId !== null);
-  const statements: [BatchItem<"pg">, ...BatchItem<"pg">[]] = [
+  const boughtIds = [...new Set(inCatalogue.map((line) => line.productId!))];
+  const results = await runBatch([
     db.insert(orders).values({
       id: orderId,
       userId,
@@ -138,6 +148,15 @@ export async function fulfillCheckoutSession(sessionId: string) {
       currency: session.currency ?? "usd",
     }),
     db.insert(orderItems).values(lines),
+    // Lock the bought rows and read their stock before the decrements, so
+    // the value read is exactly what the updates below start from. Id order
+    // keeps two concurrent fulfilments from deadlocking.
+    db
+      .select({ id: products.id, stockQuantity: products.stockQuantity })
+      .from(products)
+      .where(inArray(products.id, boughtIds))
+      .orderBy(asc(products.id))
+      .for("update"),
     // Two customers can pass the stock check and both pay; the second
     // decrement stops at 0 rather than going negative.
     ...inCatalogue.map((line) =>
@@ -164,13 +183,47 @@ export async function fulfillCheckoutSession(sessionId: string) {
           ),
         ),
     ),
-  ];
+  ]);
+  // A concurrent delivery wrote this order first.
+  if (!results) return [];
 
+  // The clamp above hides an oversell, so replay the decrements over the
+  // locked stock and log any line that asked for more than was left. The
+  // customer has paid, so this only warns. A stock history table may
+  // replace this log later.
+  const stock = new Map(results[2].map((row) => [row.id, row.stockQuantity]));
+  for (const line of inCatalogue) {
+    const available = stock.get(line.productId!) ?? 0;
+    if (line.quantity > available) {
+      console.warn("Oversold at fulfilment", {
+        orderId,
+        productId: line.productId,
+        size: line.size,
+        requested: line.quantity,
+        available,
+      });
+    }
+    stock.set(line.productId!, Math.max(available - line.quantity, 0));
+  }
+
+  // Catalogue pages that show the stock this order just lowered.
+  const paths = new Set(["/", "/new-arrivals"]);
+  for (const id of boughtIds) {
+    const row = byId.get(id)!;
+    paths.add(`/products/${row.slug}`);
+    paths.add(`/collections/${row.category.slug}`);
+  }
+  return [...paths];
+}
+
+/** db.batch() that resolves to null when the order was already written. */
+async function runBatch<T extends [BatchItem<"pg">, ...BatchItem<"pg">[]]>(
+  statements: T,
+) {
   try {
-    await db.batch(statements);
+    return await db.batch(statements);
   } catch (error) {
-    // A concurrent delivery wrote this order first.
-    if (isUniqueViolation(error)) return;
+    if (isUniqueViolation(error)) return null;
     throw error;
   }
 }
