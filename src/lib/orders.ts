@@ -271,7 +271,8 @@ async function runBatch<T extends [BatchItem<"pg">, ...BatchItem<"pg">[]]>(
 }
 
 /* ------------------------------------------------------------------------ *
- * Admin (read-only). Each query calls requireAdmin itself.
+ * Admin reads. Each query calls requireAdmin itself; fulfilment writes are
+ * in admin-order-actions.ts.
  * ------------------------------------------------------------------------ */
 
 export const ADMIN_ORDERS_PAGE_SIZE = 25;
@@ -346,10 +347,13 @@ function orderSearch(q: string) {
  */
 export async function getAdminOrders({
   q,
+  status = null,
   after,
   before,
 }: {
   q: string;
+  /** Only orders with this fulfilment status; null for all. */
+  status?: (typeof orders.$inferSelect)["fulfillmentStatus"] | null;
   after: OrderCursor | null;
   before: OrderCursor | null;
 }) {
@@ -371,12 +375,20 @@ export async function getAdminOrders({
       cursorAt: sql<string>`${orders.createdAt}::text`,
       email: orders.email,
       totalCents: orders.totalCents,
+      refundedCents: orders.refundedCents,
+      fulfillmentStatus: orders.fulfillmentStatus,
       customerName: user.name,
       itemCount: sql<number>`(select coalesce(sum(oi.quantity), 0)::int from order_items oi where oi.order_id = ${orders.id})`,
     })
     .from(orders)
     .innerJoin(user, eq(user.id, orders.userId))
-    .where(and(q ? orderSearch(q) : undefined, position))
+    .where(
+      and(
+        q ? orderSearch(q) : undefined,
+        status ? eq(orders.fulfillmentStatus, status) : undefined,
+        position,
+      ),
+    )
     .orderBy(direction(orders.createdAt), direction(orders.id))
     .limit(ADMIN_ORDERS_PAGE_SIZE + 1);
 

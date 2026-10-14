@@ -5,7 +5,9 @@ import { formatOrderDate } from "@/components/admin/orders/order-date";
 import { OrderSearch } from "@/components/admin/orders/order-search";
 import { Pagination } from "@/components/admin/pagination";
 import { orderNumber } from "@/components/orders/order-lines";
+import { type FulfillmentStatus, fulfillmentStatuses } from "@/db/schema";
 import { formatPrice } from "@/lib/format";
+import { fulfillmentLabels, fulfillmentTones } from "@/lib/fulfillment";
 import {
   encodeOrderCursor,
   getAdminOrders,
@@ -22,9 +24,22 @@ function single(value: string | string[] | undefined) {
   return typeof value === "string" ? value : undefined;
 }
 
-function pageHref(q: string, key: "after" | "before", cursor: OrderCursor) {
+/** A known status, or null (all) for anything else. */
+function parseStatus(value: string | undefined): FulfillmentStatus | null {
+  return (fulfillmentStatuses as readonly string[]).includes(value ?? "")
+    ? (value as FulfillmentStatus)
+    : null;
+}
+
+function pageHref(
+  q: string,
+  status: FulfillmentStatus | null,
+  key: "after" | "before",
+  cursor: OrderCursor,
+) {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
+  if (status) params.set("status", status);
   params.set(key, encodeOrderCursor(cursor));
   return `/admin/orders?${params}`;
 }
@@ -36,15 +51,18 @@ export default async function AdminOrdersPage({
 
   const params = await searchParams;
   const q = (single(params.q) ?? "").trim().slice(0, MAX_QUERY_LENGTH);
+  const status = parseStatus(single(params.status));
   // A malformed cursor reads as none: the first page.
   const after = parseOrderCursor(single(params.after));
   const before = after ? null : parseOrderCursor(single(params.before));
 
   const { orders, newerCursor, olderCursor } = await getAdminOrders({
     q,
+    status,
     after,
     before,
   });
+  const filtered = Boolean(q || status);
 
   return (
     <main className="flex-1 section">
@@ -53,16 +71,19 @@ export default async function AdminOrdersPage({
           title="Orders"
           meta={
             q
-              ? `Results for “${q}”`
-              : "Newest first. Read-only: refunds are made in Stripe."
+              ? `Results for “${q}”${status ? ` · ${fulfillmentLabels[status]}` : ""}`
+              : status
+                ? `${fulfillmentLabels[status]} orders, newest first.`
+                : "Newest first."
           }
         />
 
-        <OrderSearch q={q} />
+        {/* Keyed so the fields show the URL's filters after navigating. */}
+        <OrderSearch key={`${q}|${status ?? ""}`} q={q} status={status} />
 
         {orders.length === 0 ? (
           <p className="py-12 text-body text-muted">
-            {q ? "No orders match this search." : "No orders yet."}
+            {filtered ? "No orders match these filters." : "No orders yet."}
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -72,6 +93,7 @@ export default async function AdminOrdersPage({
                   <th scope="col">Order</th>
                   <th scope="col">Date</th>
                   <th scope="col">Customer</th>
+                  <th scope="col">Status</th>
                   <th scope="col" className="num">
                     Items
                   </th>
@@ -98,6 +120,23 @@ export default async function AdminOrdersPage({
                         <span className="type-meta">{order.email}</span>
                       </div>
                     </td>
+                    <td>
+                      <div className="flex flex-wrap gap-1.5">
+                        <span
+                          className="badge"
+                          data-tone={fulfillmentTones[order.fulfillmentStatus]}
+                        >
+                          {fulfillmentLabels[order.fulfillmentStatus]}
+                        </span>
+                        {order.refundedCents > 0 && (
+                          <span className="badge" data-tone="muted">
+                            {order.refundedCents >= order.totalCents
+                              ? "Refunded"
+                              : "Part refunded"}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="num">{order.itemCount}</td>
                     <td className="num">{formatPrice(order.totalCents)}</td>
                     <td className="text-end">
@@ -117,8 +156,8 @@ export default async function AdminOrdersPage({
         )}
 
         <Pagination
-          previousHref={newerCursor && pageHref(q, "before", newerCursor)}
-          nextHref={olderCursor && pageHref(q, "after", olderCursor)}
+          previousHref={newerCursor && pageHref(q, status, "before", newerCursor)}
+          nextHref={olderCursor && pageHref(q, status, "after", olderCursor)}
         />
       </div>
     </main>

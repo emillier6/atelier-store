@@ -2,10 +2,15 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { FulfillmentForms } from "@/components/admin/orders/fulfillment-forms";
 import { formatOrderDate } from "@/components/admin/orders/order-date";
+import { RefundPanel } from "@/components/admin/orders/refund-panel";
 import { OrderLines, orderNumber } from "@/components/orders/order-lines";
+import { ShippingAddressBlock } from "@/components/orders/shipping-address";
 import { formatPrice } from "@/lib/format";
 import { UUID_PATTERN } from "@/lib/form-data";
+import { fulfillmentLabels, fulfillmentTones } from "@/lib/fulfillment";
+import { shippingAddressOf } from "@/lib/shipping-address";
 import { getAdminOrder } from "@/lib/orders";
 import { requireAdmin } from "@/lib/session";
 
@@ -46,16 +51,54 @@ export default async function AdminOrderPage({
         />
 
         <div className="grid gap-12 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <section aria-labelledby="lines" className="stack gap-4">
-            <h2 id="lines" className="type-label">
-              Lines
-            </h2>
-            <OrderLines lines={order.items} />
-            <div className="flex items-baseline justify-between gap-4">
-              <p className="text-body-sm font-medium">Charged</p>
-              <p className="type-price">{formatPrice(order.totalCents)}</p>
-            </div>
-          </section>
+          <div className="stack gap-12">
+            <section aria-labelledby="lines" className="stack gap-4">
+              <h2 id="lines" className="type-label">
+                Lines
+              </h2>
+              <OrderLines lines={order.items} />
+              <div className="flex items-baseline justify-between gap-4">
+                <p className="text-body-sm font-medium">Charged</p>
+                <p className="type-price">{formatPrice(order.totalCents)}</p>
+              </div>
+            </section>
+
+            <section aria-labelledby="fulfilment" className="stack gap-6">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 id="fulfilment" className="type-label">
+                  Fulfilment
+                </h2>
+                <span
+                  className="badge"
+                  data-tone={fulfillmentTones[order.fulfillmentStatus]}
+                >
+                  {fulfillmentLabels[order.fulfillmentStatus]}
+                </span>
+              </div>
+              <dl className="grid gap-3 text-body-sm sm:grid-cols-2">
+                <Detail label="Carrier">{order.carrier || "—"}</Detail>
+                <Detail label="Tracking number">
+                  {order.trackingNumber ? (
+                    <code className="break-all">{order.trackingNumber}</code>
+                  ) : (
+                    "—"
+                  )}
+                </Detail>
+                <Detail label="Shipped">
+                  {order.shippedAt ? formatOrderDate(order.shippedAt) : "—"}
+                </Detail>
+                <Detail label="Delivered">
+                  {order.deliveredAt ? formatOrderDate(order.deliveredAt) : "—"}
+                </Detail>
+              </dl>
+              <FulfillmentForms
+                orderId={order.id}
+                status={order.fulfillmentStatus}
+                carrier={order.carrier}
+                trackingNumber={order.trackingNumber}
+              />
+            </section>
+          </div>
 
           <div className="stack gap-12">
             <section aria-labelledby="customer" className="stack gap-4">
@@ -67,6 +110,13 @@ export default async function AdminOrderPage({
                 <Detail label="Account email">{order.user.email}</Detail>
                 <Detail label="Charged email">{order.email || "—"}</Detail>
               </dl>
+            </section>
+
+            <section aria-labelledby="shipping" className="stack gap-4">
+              <h2 id="shipping" className="type-label">
+                Shipping
+              </h2>
+              <ShippingAddressBlock address={shippingAddressOf(order)} />
             </section>
 
             <section aria-labelledby="payment" className="stack gap-4">
@@ -99,10 +149,7 @@ export default async function AdminOrderPage({
                   View in Stripe
                 </a>
               )}
-              <p className="type-meta">
-                Orders can&apos;t be edited here. Refunds are made in the
-                Stripe Dashboard.
-              </p>
+              <RefundPanel orderId={order.id} />
             </section>
           </div>
         </div>
