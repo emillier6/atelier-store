@@ -12,16 +12,31 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+export const userRoles = ["customer", "admin"] as const;
+export type UserRole = (typeof userRoles)[number];
+
 // Core Better Auth tables. Application tables (products, orders, ...) go here too.
-export const user = pgTable("user", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").default(false).notNull(),
-  image: text("image"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const user = pgTable(
+  "user",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    emailVerified: boolean("email_verified").default(false).notNull(),
+    image: text("image"),
+    /**
+     * Declared to Better Auth with `input: false` (src/lib/auth.ts), so
+     * neither sign-up nor /api/auth/update-user can set it. Admins are
+     * promoted by hand with `pnpm db:make-admin`. Not in the tutorial.
+     */
+    role: text("role").$type<UserRole>().default("customer").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check("user_role_check", sql`${table.role} in ('customer', 'admin')`),
+  ],
+);
 
 /**
  * The indexes on the three tables below are the ones Better Auth declares on
@@ -86,15 +101,28 @@ export const verification = pgTable(
  * Catalogue
  * ------------------------------------------------------------------------ */
 
-export const categories = pgTable("categories", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  slug: text("slug").notNull().unique(),
-  name: text("name").notNull(),
-  position: integer("position").default(0).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+export const categories = pgTable(
+  "categories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    position: integer("position").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    check("categories_position_check", sql`${table.position} >= 0`),
+  ],
+);
+
+/**
+ * draft: being prepared, never shown. active: on sale. archived: withdrawn
+ * without deleting, which would empty bags and unlink order lines.
+ */
+export const productStatuses = ["draft", "active", "archived"] as const;
+export type ProductStatus = (typeof productStatuses)[number];
 
 /** Money is stored in cents; `formatPrice` in `src/lib/format.ts` expects cents. */
 export const products = pgTable(
@@ -116,8 +144,15 @@ export const products = pgTable(
     /** Size options for the picker; empty for one-size pieces. Not in the tutorial. */
     sizes: jsonb("sizes").$type<string[]>().default([]).notNull(),
     stockQuantity: integer("stock_quantity").default(0).notNull(),
+    /** Not in the tutorial. Defaults to active so existing rows stay on sale. */
+    status: text("status").$type<ProductStatus>().default("active").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
+      .notNull(),
+    /** Set by Drizzle on every update through it. Not in the tutorial. */
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
       .notNull(),
   },
   (table) => [
@@ -125,6 +160,10 @@ export const products = pgTable(
     index("products_created_at_idx").on(table.createdAt.desc()),
     check("products_price_cents_check", sql`${table.priceCents} >= 0`),
     check("products_stock_quantity_check", sql`${table.stockQuantity} >= 0`),
+    check(
+      "products_status_check",
+      sql`${table.status} in ('draft', 'active', 'archived')`,
+    ),
   ],
 );
 
@@ -269,6 +308,67 @@ export const orderItems = pgTable(
     lineTotalCents: integer("line_total_cents").notNull(),
   },
   (table) => [index("order_items_order_id_idx").on(table.orderId)],
+);
+
+/* ------------------------------------------------------------------------ *
+ * Stock history
+ * ------------------------------------------------------------------------ */
+
+/**
+ * restock / correction: an admin changed the count. sale / refund: an order
+ * moved it. oversell: a sale asked for more than was left (delta can be 0).
+ */
+export const stockAdjustmentReasons = [
+  "restock",
+  "correction",
+  "sale",
+  "refund",
+  "oversell",
+] as const;
+export type StockAdjustmentReason = (typeof stockAdjustmentReasons)[number];
+
+/**
+ * One row per change to products.stock_quantity, written in the same
+ * db.batch() as the change itself. Not in the tutorial.
+ */
+export const stockAdjustments = pgTable(
+  "stock_adjustments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    /** Signed change actually applied to stock_quantity. */
+    delta: integer("delta").notNull(),
+    /** stock_quantity right after the change. */
+    stockAfter: integer("stock_after").notNull(),
+    reason: text("reason").$type<StockAdjustmentReason>().notNull(),
+    /* Who made it; null for the webhook. set null: history outlives users. */
+    userId: text("user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("stock_adjustments_product_id_created_at_idx").on(
+      table.productId,
+      table.createdAt.desc(),
+    ),
+    check(
+      "stock_adjustments_reason_check",
+      sql`${table.reason} in ('restock', 'correction', 'sale', 'refund', 'oversell')`,
+    ),
+    check("stock_adjustments_stock_after_check", sql`${table.stockAfter} >= 0`),
+    check(
+      "stock_adjustments_delta_check",
+      sql`${table.delta} <> 0 or ${table.reason} = 'oversell'`,
+    ),
+  ],
 );
 
 /* ------------------------------------------------------------------------ *
