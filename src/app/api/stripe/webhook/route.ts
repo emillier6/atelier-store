@@ -1,5 +1,5 @@
-import { revalidatePath } from "next/cache";
 import type Stripe from "stripe";
+import { revalidateCatalogue } from "@/lib/catalogue-paths";
 import { fulfillCheckoutSession } from "@/lib/orders";
 import { getStripe, webhookSecret } from "@/lib/stripe";
 
@@ -46,13 +46,8 @@ export async function POST(request: Request) {
   }
 
   // Outside the try above: the order is written by now, so a failed cache
-  // refresh must not answer 500 and make Stripe redeliver. The pages fall
-  // back to their 60s revalidate.
-  try {
-    for (const path of changedPaths) revalidatePath(path);
-  } catch (error) {
-    console.error("Catalogue revalidation failed", changedPaths, error);
-  }
+  // refresh must not answer 500 and make Stripe redeliver. It never throws.
+  revalidateCatalogue(changedPaths);
 
   return new Response(null, { status: 200 });
 }

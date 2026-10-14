@@ -3,10 +3,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-/* Products, Categories and Orders join this list as their pages land. */
-const adminLinks = [{ href: "/admin", label: "Overview" }];
+const adminLinks = [
+  { href: "/admin", label: "Overview" },
+  { href: "/admin/products", label: "Products" },
+  { href: "/admin/categories", label: "Categories" },
+  { href: "/admin/orders", label: "Orders" },
+];
 
-/** The admin section's menu; the current page reads bold and uppercase. */
+/** Overview matches exactly; a section also matches its sub-pages. */
+function isCurrent(pathname: string, href: string) {
+  return href === "/admin"
+    ? pathname === href
+    : pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** The admin section's menu; the current section reads bold and uppercase. */
 export function AdminNav() {
   const pathname = usePathname();
 
@@ -18,7 +29,7 @@ export function AdminNav() {
             <Link
               href={link.href}
               className="link-nav"
-              aria-current={pathname === link.href ? "page" : undefined}
+              aria-current={isCurrent(pathname, link.href) ? "page" : undefined}
             >
               {link.label}
             </Link>

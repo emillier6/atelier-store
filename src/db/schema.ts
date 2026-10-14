@@ -385,6 +385,7 @@ export const productsRelations = relations(products, ({ one, many }) => ({
     references: [categories.id],
   }),
   images: many(productImages),
+  stockAdjustments: many(stockAdjustments),
 }));
 
 export const productImagesRelations = relations(productImages, ({ one }) => ({
@@ -406,7 +407,8 @@ export const cartItemsRelations = relations(cartItems, ({ one }) => ({
   }),
 }));
 
-export const ordersRelations = relations(orders, ({ many }) => ({
+export const ordersRelations = relations(orders, ({ one, many }) => ({
+  user: one(user, { fields: [orders.userId], references: [user.id] }),
   items: many(orderItems),
 }));
 
@@ -417,3 +419,21 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
     references: [products.id],
   }),
 }));
+
+export const stockAdjustmentsRelations = relations(
+  stockAdjustments,
+  ({ one }) => ({
+    product: one(products, {
+      fields: [stockAdjustments.productId],
+      references: [products.id],
+    }),
+    user: one(user, {
+      fields: [stockAdjustments.userId],
+      references: [user.id],
+    }),
+    order: one(orders, {
+      fields: [stockAdjustments.orderId],
+      references: [orders.id],
+    }),
+  }),
+);
