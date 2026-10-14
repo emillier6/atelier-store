@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getBag } from "@/lib/cart";
 import type { CartFormState } from "@/lib/cart-form-state";
 import { requireUser } from "@/lib/session";
+import { SHIPPING_COUNTRIES } from "@/lib/shipping-address";
 import { appUrl, getStripe } from "@/lib/stripe";
 
 /**
@@ -58,6 +59,24 @@ export async function startCheckout(): Promise<CartFormState> {
       // {CHECKOUT_SESSION_ID} is filled in by Stripe; keep it literal.
       success_url: `${appUrl()}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl()}/bag?cancelled=1`,
+      // Stripe collects the address; the webhook copies it onto the order.
+      shipping_address_collection: {
+        allowed_countries: [...SHIPPING_COUNTRIES],
+      },
+      // One free rate, so the total charged is still the bag's total.
+      shipping_options: [
+        {
+          shipping_rate_data: {
+            type: "fixed_amount",
+            display_name: "Complimentary shipping",
+            fixed_amount: { amount: 0, currency: "usd" },
+            delivery_estimate: {
+              minimum: { unit: "business_day", value: 3 },
+              maximum: { unit: "business_day", value: 7 },
+            },
+          },
+        },
+      ],
       integration_identifier: INTEGRATION_IDENTIFIER,
       // No payment_method_types: leaving it out enables the payment methods
       // configured in the Stripe Dashboard.

@@ -140,6 +140,7 @@ export async function fulfillCheckoutSession(
 
   const inCatalogue = lines.filter((line) => line.productId !== null);
   const boughtIds = [...new Set(inCatalogue.map((line) => line.productId!))];
+  const shipping = session.collected_information?.shipping_details;
   const results = await runBatch([
     db.insert(orders).values({
       id: orderId,
@@ -152,6 +153,15 @@ export async function fulfillCheckoutSession(
       email: session.customer_details?.email ?? session.customer_email ?? "",
       totalCents: session.amount_total ?? 0,
       currency: session.currency ?? "usd",
+      // A snapshot of where to ship. Sessions created before addresses were
+      // collected have none, and their order keeps nulls.
+      shippingName: shipping?.name ?? null,
+      shippingLine1: shipping?.address.line1 ?? null,
+      shippingLine2: shipping?.address.line2 ?? null,
+      shippingCity: shipping?.address.city ?? null,
+      shippingState: shipping?.address.state ?? null,
+      shippingPostalCode: shipping?.address.postal_code ?? null,
+      shippingCountry: shipping?.address.country ?? null,
     }),
     db.insert(orderItems).values(lines),
     // Lock the bought rows before anything reads their stock, so the reads

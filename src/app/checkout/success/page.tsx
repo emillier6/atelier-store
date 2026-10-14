@@ -3,9 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { OrderLines, orderNumber } from "@/components/orders/order-lines";
 import { PendingOrderRefresh } from "@/components/orders/pending-order-refresh";
+import { ShippingAddressBlock } from "@/components/orders/shipping-address";
 import { formatPrice } from "@/lib/format";
 import { getOrderBySession } from "@/lib/orders";
 import { requireUser } from "@/lib/session";
+import { shippingAddressOf } from "@/lib/shipping-address";
 import { getStripe } from "@/lib/stripe";
 
 export const metadata: Metadata = { title: "Order confirmed" };
@@ -72,6 +74,17 @@ export default async function CheckoutSuccessPage({
                   <dd className="type-price">{formatPrice(order.totalCents)}</dd>
                 </div>
               </dl>
+            </section>
+          )}
+
+          {order && (
+            <section aria-labelledby="shipping-to" className="stack gap-4">
+              <h2 id="shipping-to" className="type-label">
+                Shipping to
+              </h2>
+              <div className="hairline-t pt-4">
+                <ShippingAddressBlock address={shippingAddressOf(order)} />
+              </div>
             </section>
           )}
 
