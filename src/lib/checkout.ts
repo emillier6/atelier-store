@@ -22,12 +22,14 @@ export async function startCheckout(): Promise<CartFormState> {
   const bag = await getBag(user.id);
 
   if (bag.lines.length === 0) return { error: "Your bag is empty." };
-  // The same fresh read the prices came from, so a piece that sold out
-  // while the bag sat open never reaches Stripe.
+  // The same fresh read the prices came from, so a piece that sold out, or
+  // was drafted or archived, while the bag sat open never reaches Stripe.
   const unavailable = bag.lines.find((line) => line.unavailable);
   if (unavailable) {
     return {
-      error: `${unavailable.name} is no longer available in that quantity. Update your bag to check out.`,
+      error: unavailable.inactive
+        ? `${unavailable.name} is no longer available. Remove it to check out.`
+        : `${unavailable.name} is no longer available in that quantity. Update your bag to check out.`,
     };
   }
 

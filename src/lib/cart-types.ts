@@ -22,9 +22,11 @@ export type BagLine = {
   lineTotalCents: number;
   /** Units in stock now, shared by every size of the product. */
   stock: number;
+  /** The product was drafted or archived: it can only be removed. */
+  inactive: boolean;
   /**
-   * Checkout would fail as the bag stands: the product is sold out, or all
-   * its lines together (every size) ask for more than `stock`.
+   * Checkout would fail as the bag stands: the product is inactive or sold
+   * out, or all its lines together (every size) ask for more than `stock`.
    */
   unavailable: boolean;
 };

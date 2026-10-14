@@ -1,5 +1,5 @@
 // Catalog reads for Server Components. Returns the storefront `Product` shape.
-import { asc, desc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
 import { categories, productImages, products } from "@/db/schema";
@@ -15,6 +15,9 @@ const withRelations = {
 function categoryIdBySlug(slug: string) {
   return sql`(select c.id from categories c where c.slug = ${slug})`;
 }
+
+/** Drafts and archived pieces never reach the storefront. */
+const isActive = eq(products.status, "active");
 
 type ProductRow = NonNullable<
   Awaited<
@@ -54,7 +57,7 @@ function toProducts(rows: ProductRow[]) {
 
 export const getProduct = cache(async (slug: string) => {
   const row = await db.query.products.findFirst({
-    where: eq(products.slug, slug),
+    where: and(eq(products.slug, slug), isActive),
     with: withRelations,
   });
   return (row && toProduct(row)) ?? undefined;
@@ -77,12 +80,16 @@ export async function getCategories() {
 }
 
 export async function getProductSlugs() {
-  const rows = await db.select({ slug: products.slug }).from(products);
+  const rows = await db
+    .select({ slug: products.slug })
+    .from(products)
+    .where(isActive);
   return rows.map((row) => row.slug);
 }
 
 export async function getNewArrivals(limit = 8) {
   const rows = await db.query.products.findMany({
+    where: isActive,
     with: withRelations,
     orderBy: [desc(products.createdAt)],
     limit,
@@ -92,7 +99,7 @@ export async function getNewArrivals(limit = 8) {
 
 export async function getProductsByCategory(slug: string, limit?: number) {
   const rows = await db.query.products.findMany({
-    where: eq(products.categoryId, categoryIdBySlug(slug)),
+    where: and(eq(products.categoryId, categoryIdBySlug(slug)), isActive),
     with: withRelations,
     orderBy: [desc(products.createdAt)],
     limit,
@@ -103,7 +110,7 @@ export async function getProductsByCategory(slug: string, limit?: number) {
 /** Same-category products first, then the rest of the catalog. */
 export async function getRelatedProducts(product: Product, limit = 4) {
   const rows = await db.query.products.findMany({
-    where: ne(products.slug, product.slug),
+    where: and(ne(products.slug, product.slug), isActive),
     with: withRelations,
     orderBy: [
       desc(

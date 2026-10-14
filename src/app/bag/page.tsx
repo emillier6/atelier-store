@@ -63,8 +63,8 @@ export default async function BagPage({ searchParams }: PageProps<"/bag">) {
             <p className="type-meta">Taxes are calculated at checkout.</p>
             {blocked && (
               <p className="text-body-sm text-danger">
-                Some pieces are no longer available in the quantity in your
-                bag. Update them above to check out.
+                Some pieces in your bag are no longer available as they
+                stand. Update them above to check out.
               </p>
             )}
             <CheckoutButton disabled={blocked} />

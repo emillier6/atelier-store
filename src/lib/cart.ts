@@ -55,6 +55,8 @@ export async function getBag(userId: string): Promise<Bag> {
 
   const lines: BagLine[] = cart.items.map(({ product, ...item }) => {
     const [image] = product.images;
+    // Drafted or archived since it was added: it can't be bought any more.
+    const inactive = product.status !== "active";
     return {
       id: item.id,
       productId: product.id,
@@ -67,7 +69,9 @@ export async function getBag(userId: string): Promise<Bag> {
       quantity: item.quantity,
       lineTotalCents: product.priceCents * item.quantity,
       stock: product.stockQuantity,
+      inactive,
       unavailable:
+        inactive ||
         product.stockQuantity <= 0 ||
         (wanted.get(item.productId) ?? 0) > product.stockQuantity,
     };
@@ -80,7 +84,10 @@ export async function getBag(userId: string): Promise<Bag> {
   };
 }
 
-/** What Add to bag needs to check a request: never sent to the browser. */
+/**
+ * What Add to bag needs to check a request: never sent to the browser.
+ * Only active products, so a draft or archived one reads as unknown.
+ */
 export async function getProductForBag(slug: string) {
   const [row] = await db
     .select({
@@ -89,7 +96,7 @@ export async function getProductForBag(slug: string) {
       stockQuantity: products.stockQuantity,
     })
     .from(products)
-    .where(eq(products.slug, slug));
+    .where(and(eq(products.slug, slug), eq(products.status, "active")));
   return row;
 }
 
@@ -97,7 +104,8 @@ export async function getProductForBag(slug: string) {
  * Adds a piece, or bumps the line with the same size. Stock is one count per
  * product, so the cap is min(MAX_QUANTITY, stock - the other sizes already in
  * this bag), worked out inside the upsert rather than read first and written
- * after. Returns false when there was no room left, so nothing changed.
+ * after. A product that isn't active yields no cap row, so nothing is added.
+ * Returns false when there was no room left, so nothing changed.
  * The unique (cart_id, product_id, size) is the conflict target.
  */
 export async function addItem(
@@ -117,7 +125,8 @@ export async function addItem(
             and ci.size is distinct from ${item.size}::text
         ), 0)
       ) as n
-      from products p where p.id = ${item.productId}::uuid
+      from products p
+      where p.id = ${item.productId}::uuid and p.status = 'active'
     )
     insert into cart_items (cart_id, product_id, size, quantity)
     select ${cartId}::uuid, ${item.productId}::uuid, ${item.size}::text,
@@ -150,9 +159,10 @@ function ownLine(userId: string, itemId: string) {
 
 /**
  * Sets a line's quantity unless the product's total across every size in
- * this bag would pass min(MAX_QUANTITY, stock). Lowering is always allowed,
- * so a bag that went over stock can be brought back down. One UPDATE, so the
- * check reads the same rows it writes. Returns false when nothing changed.
+ * this bag would pass min(MAX_QUANTITY, stock), or the product is no longer
+ * active. Lowering is always allowed, so a bag that went over stock can be
+ * brought back down. One UPDATE, so the check reads the same rows it
+ * writes. Returns false when nothing changed.
  */
 export async function setQuantity(
   userId: string,
@@ -167,8 +177,9 @@ export async function setQuantity(
         ownLine(userId, itemId),
         sql`(${quantity} <= ${cartItems.quantity} or ${quantity} <= least(
           ${MAX_QUANTITY}::int,
-          (select p.stock_quantity from products p
-            where p.id = ${cartItems.productId})
+          -- least() skips nulls: an inactive product must count as 0, not drop out.
+          coalesce((select p.stock_quantity from products p
+            where p.id = ${cartItems.productId} and p.status = 'active'), 0)
           - coalesce((
             select sum(ci.quantity)::int from cart_items ci
             where ci.cart_id = ${cartItems.cartId}

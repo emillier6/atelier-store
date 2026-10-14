@@ -22,8 +22,11 @@ export function BagLineItem({ line }: { line: BagLine }) {
   const href = `/products/${line.slug}`;
 
   // Offer no more than is in stock, but keep the current quantity selectable
-  // so the select never shows a number the bag doesn't hold.
-  const ceiling = Math.min(MAX_QUANTITY, Math.max(line.stock, line.quantity));
+  // so the select never shows a number the bag doesn't hold. An inactive
+  // piece can only go down.
+  const ceiling = line.inactive
+    ? line.quantity
+    : Math.min(MAX_QUANTITY, Math.max(line.stock, line.quantity));
   const options = Array.from({ length: ceiling }, (_, i) => i + 1);
 
   return (
@@ -57,7 +60,9 @@ export function BagLineItem({ line }: { line: BagLine }) {
 
         {line.unavailable && (
           <p className="text-body-sm text-danger">
-            {line.stock <= 0
+            {line.inactive
+              ? "No longer available. Remove it to check out."
+              : line.stock <= 0
               ? "Sold out. Remove it to check out."
               : `Only ${line.stock} left${line.size ? " across all sizes" : ""}. Lower the quantity to check out.`}
           </p>
