@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   index,
@@ -96,6 +97,22 @@ export const verification = pgTable(
   },
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
+
+/**
+ * Rate-limit counters, shared by every server instance. Better Auth's own
+ * limiter (`rateLimit.storage: "database"`) uses this exact shape (model
+ * `rateLimit`: key, count, lastRequest in ms); src/lib/rate-limit.ts keeps the
+ * Server Actions' buckets here too, under its own key prefixes. Not in the
+ * tutorial.
+ */
+export const rateLimit = pgTable("rate_limit", {
+  id: text("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()::text`),
+  key: text("key").notNull().unique(),
+  count: integer("count").notNull(),
+  lastRequest: bigint("last_request", { mode: "number" }).notNull(),
+});
 
 /* ------------------------------------------------------------------------ *
  * Catalogue

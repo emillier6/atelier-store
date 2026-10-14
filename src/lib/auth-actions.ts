@@ -23,7 +23,7 @@ import { safeNextPath } from "@/lib/session";
  *
  * Better Auth's rate limiter only runs on its HTTP routes (/api/auth/*), so
  * these calls would be unthrottled; src/lib/rate-limit.ts limits them instead
- * (per server instance, see there).
+ * (in the shared rate_limit table, see there).
  */
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -95,11 +95,10 @@ export async function signIn(
   const requestHeaders = await headers();
   const emailKey = `sign-in:email:${email}`;
   // Both buckets count every attempt, whether or not the address has an account.
-  const underIpLimit = consume(
-    `sign-in:ip:${clientKey(requestHeaders)}`,
-    SIGN_IN_PER_IP,
-  );
-  const underEmailLimit = consume(emailKey, SIGN_IN_PER_EMAIL);
+  const [underIpLimit, underEmailLimit] = await Promise.all([
+    consume(`sign-in:ip:${clientKey(requestHeaders)}`, SIGN_IN_PER_IP),
+    consume(emailKey, SIGN_IN_PER_EMAIL),
+  ]);
   if (!underIpLimit || !underEmailLimit) {
     return { ...submitted, error: RATE_LIMIT_ERROR };
   }
@@ -113,7 +112,7 @@ export async function signIn(
     if (isAPIError(error)) return { ...submitted, error: SIGN_IN_ERROR };
     throw error;
   }
-  reset(emailKey);
+  await reset(emailKey);
 
   redirect(safeNextPath(formData.get("next")));
 }
@@ -138,7 +137,7 @@ export async function signUp(
 
   const requestHeaders = await headers();
   // Also slows probing which addresses have accounts ("email taken" below).
-  if (!consume(`sign-up:ip:${clientKey(requestHeaders)}`, SIGN_UP_PER_IP)) {
+  if (!(await consume(`sign-up:ip:${clientKey(requestHeaders)}`, SIGN_UP_PER_IP))) {
     return { ...submitted, error: RATE_LIMIT_ERROR };
   }
 
