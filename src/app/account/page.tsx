@@ -25,11 +25,18 @@ export default async function AccountPage() {
                 <p className="text-body">{user.name}</p>
                 <p className="type-meta">{user.email}</p>
               </div>
-              <form action={signOut}>
-                <button type="submit" className="btn btn-outline btn-sm">
-                  Sign out
-                </button>
-              </form>
+              <div className="cluster gap-3">
+                {user.role === "admin" && (
+                  <Link href="/admin" className="btn btn-outline btn-sm">
+                    Admin
+                  </Link>
+                )}
+                <form action={signOut}>
+                  <button type="submit" className="btn btn-outline btn-sm">
+                    Sign out
+                  </button>
+                </form>
+              </div>
             </div>
           </header>
 
