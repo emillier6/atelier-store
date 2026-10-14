@@ -1,0 +1,180 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { formatOrderDate } from "@/components/admin/orders/order-date";
+import { OrderLines, orderNumber } from "@/components/orders/order-lines";
+import { formatPrice } from "@/lib/format";
+import { UUID_PATTERN } from "@/lib/form-data";
+import { getAdminOrder } from "@/lib/orders";
+import { requireAdmin } from "@/lib/session";
+
+const STRIPE_PAYMENTS_URL = "https://dashboard.stripe.com/test/payments/";
+
+async function loadOrder(rawId: string) {
+  const id = rawId.toLowerCase();
+  await requireAdmin(`/admin/orders/${encodeURIComponent(rawId)}`);
+  if (!UUID_PATTERN.test(id)) notFound();
+  const order = await getAdminOrder(id);
+  if (!order) notFound();
+  return order;
+}
+
+export async function generateMetadata({
+  params,
+}: PageProps<"/admin/orders/[id]">): Promise<Metadata> {
+  const order = await loadOrder((await params).id);
+  return { title: `Order ${orderNumber(order.id)}` };
+}
+
+export default async function AdminOrderPage({
+  params,
+}: PageProps<"/admin/orders/[id]">) {
+  const order = await loadOrder((await params).id);
+  const number = orderNumber(order.id);
+  const itemCount = order.items.reduce((sum, line) => sum + line.quantity, 0);
+
+  return (
+    <main className="flex-1 section">
+      <div className="container-page">
+        <AdminPageHeader
+          title={`Order ${number}`}
+          crumbs={[{ href: "/admin/orders", label: "Orders" }]}
+          meta={`${formatOrderDate(order.createdAt)} · ${itemCount} ${
+            itemCount === 1 ? "item" : "items"
+          } · ${formatPrice(order.totalCents)}`}
+        />
+
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <section aria-labelledby="lines" className="stack gap-4">
+            <h2 id="lines" className="type-label">
+              Lines
+            </h2>
+            <OrderLines lines={order.items} />
+            <div className="flex items-baseline justify-between gap-4">
+              <p className="text-body-sm font-medium">Charged</p>
+              <p className="type-price">{formatPrice(order.totalCents)}</p>
+            </div>
+          </section>
+
+          <div className="stack gap-12">
+            <section aria-labelledby="customer" className="stack gap-4">
+              <h2 id="customer" className="type-label">
+                Customer
+              </h2>
+              <dl className="stack gap-3 text-body-sm">
+                <Detail label="Name">{order.user.name}</Detail>
+                <Detail label="Account email">{order.user.email}</Detail>
+                <Detail label="Charged email">{order.email || "—"}</Detail>
+              </dl>
+            </section>
+
+            <section aria-labelledby="payment" className="stack gap-4">
+              <h2 id="payment" className="type-label">
+                Payment
+              </h2>
+              <dl className="stack gap-3 text-body-sm">
+                <Detail label="Checkout Session">
+                  <code className="break-all">
+                    {order.stripeCheckoutSessionId}
+                  </code>
+                </Detail>
+                <Detail label="PaymentIntent">
+                  {order.stripePaymentIntentId ? (
+                    <code className="break-all">
+                      {order.stripePaymentIntentId}
+                    </code>
+                  ) : (
+                    "—"
+                  )}
+                </Detail>
+              </dl>
+              {order.stripePaymentIntentId && (
+                <a
+                  href={`${STRIPE_PAYMENTS_URL}${encodeURIComponent(order.stripePaymentIntentId)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-outline btn-sm self-start"
+                >
+                  View in Stripe
+                </a>
+              )}
+              <p className="type-meta">
+                Orders can&apos;t be edited here. Refunds are made in the
+                Stripe Dashboard.
+              </p>
+            </section>
+          </div>
+        </div>
+
+        <section aria-labelledby="stock" className="stack gap-4 pt-12">
+          <h2 id="stock" className="type-label">
+            Stock changes
+          </h2>
+          {order.stockAdjustments.length === 0 ? (
+            <p className="text-body-sm text-muted">
+              No stock changes recorded for this order.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th scope="col">Product</th>
+                    <th scope="col">Reason</th>
+                    <th scope="col" className="num">
+                      Change
+                    </th>
+                    <th scope="col" className="num">
+                      Stock after
+                    </th>
+                    <th scope="col">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {order.stockAdjustments.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.product.name}</td>
+                      <td>
+                        <span
+                          className="badge"
+                          data-tone={
+                            row.reason === "oversell" ? "danger" : "muted"
+                          }
+                        >
+                          {row.reason}
+                        </span>
+                      </td>
+                      <td className="num">
+                        {row.delta > 0 ? `+${row.delta}` : row.delta}
+                      </td>
+                      <td className="num">{row.stockAfter}</td>
+                      <td className="whitespace-nowrap text-muted">
+                        {formatOrderDate(row.createdAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function Detail({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="stack gap-1">
+      <dt className="text-muted">{label}</dt>
+      <dd>{children}</dd>
+    </div>
+  );
+}
