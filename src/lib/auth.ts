@@ -7,6 +7,21 @@ import * as schema from "@/db/schema";
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg", schema }),
   emailAndPassword: { enabled: true },
+  user: {
+    additionalFields: {
+      /*
+       * input: false keeps it out of sign-up and of /api/auth/update-user,
+       * which any signed-in user can call: without it, anyone could make
+       * themselves admin. Only `pnpm db:make-admin` sets it.
+       */
+      role: {
+        type: ["customer", "admin"],
+        required: false,
+        defaultValue: "customer",
+        input: false,
+      },
+    },
+  },
   /*
    * Guards the HTTP routes under /api/auth (on by default only in production;
    * defaults: 100 requests per 10s, 3 per 10s on /sign-in and /sign-up). It

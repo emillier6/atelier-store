@@ -1,6 +1,6 @@
 import "server-only";
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { auth } from "@/lib/auth";
 
@@ -20,6 +20,19 @@ export const getCurrentUser = cache(async () => {
 export async function requireUser(nextPath: string) {
   const user = await getCurrentUser();
   if (!user) redirect(`/sign-in?next=${encodeURIComponent(nextPath)}`);
+  return user;
+}
+
+/**
+ * The signed-in admin. Signed-out visitors go to /sign-in like requireUser;
+ * signed-in customers get a 404, so /admin doesn't admit it exists. There is
+ * no proxy.ts, layouts don't re-run on every navigation and Server Actions
+ * can be POSTed to directly, so every admin page, action and query calls
+ * this itself.
+ */
+export async function requireAdmin(nextPath: string) {
+  const user = await requireUser(nextPath);
+  if (user.role !== "admin") notFound();
   return user;
 }
 
