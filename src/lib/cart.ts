@@ -2,7 +2,12 @@ import "server-only";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { cartItems, carts, productImages, products } from "@/db/schema";
-import { type Bag, type BagLine, emptyBag } from "@/lib/cart-types";
+import {
+  type Bag,
+  type BagLine,
+  emptyBag,
+  MAX_QUANTITY,
+} from "@/lib/cart-types";
 
 /*
  * The bag's queries. Pages and actions go through here, never through db,
@@ -89,25 +94,44 @@ export async function getProductForBag(slug: string) {
 }
 
 /**
- * Adds a piece, or bumps the line with the same size, never past `cap`.
+ * Adds a piece, or bumps the line with the same size. Stock is one count per
+ * product, so the cap is min(MAX_QUANTITY, stock - the other sizes already in
+ * this bag), worked out inside the upsert rather than read first and written
+ * after. Returns false when there was no room left, so nothing changed.
  * The unique (cart_id, product_id, size) is the conflict target.
  */
 export async function addItem(
   userId: string,
   item: { productId: string; size: string | null; quantity: number },
-  cap: number,
 ) {
   const cartId = await getOrCreateCartId(userId);
-  await db
-    .insert(cartItems)
-    .values({ cartId, ...item, quantity: Math.min(item.quantity, cap) })
-    .onConflictDoUpdate({
-      target: [cartItems.cartId, cartItems.productId, cartItems.size],
-      set: {
-        quantity: sql`least(${cartItems.quantity} + ${item.quantity}, ${cap})`,
-        updatedAt: new Date(),
-      },
-    });
+  // Raw SQL: Drizzle's insert-select wants every column, defaults included.
+  const result = await db.execute(sql`
+    with cap as (
+      select least(
+        ${MAX_QUANTITY}::int,
+        p.stock_quantity - coalesce((
+          select sum(ci.quantity)::int from cart_items ci
+          where ci.cart_id = ${cartId}::uuid
+            and ci.product_id = p.id
+            and ci.size is distinct from ${item.size}::text
+        ), 0)
+      ) as n
+      from products p where p.id = ${item.productId}::uuid
+    )
+    insert into cart_items (cart_id, product_id, size, quantity)
+    select ${cartId}::uuid, ${item.productId}::uuid, ${item.size}::text,
+      least(${item.quantity}::int, cap.n)
+    from cap where cap.n >= 1
+    on conflict (cart_id, product_id, size) do update
+      set quantity = least(
+            cart_items.quantity + excluded.quantity, (select n from cap)
+          ),
+          updated_at = now()
+      where cart_items.quantity < (select n from cap)
+    returning cart_items.id
+  `);
+  return result.rows.length > 0;
 }
 
 /**
@@ -124,15 +148,38 @@ function ownLine(userId: string, itemId: string) {
   );
 }
 
+/**
+ * Sets a line's quantity unless the product's total across every size in
+ * this bag would pass min(MAX_QUANTITY, stock). Lowering is always allowed,
+ * so a bag that went over stock can be brought back down. One UPDATE, so the
+ * check reads the same rows it writes. Returns false when nothing changed.
+ */
 export async function setQuantity(
   userId: string,
   itemId: string,
   quantity: number,
 ) {
-  await db
+  const rows = await db
     .update(cartItems)
     .set({ quantity, updatedAt: new Date() })
-    .where(ownLine(userId, itemId));
+    .where(
+      and(
+        ownLine(userId, itemId),
+        sql`(${quantity} <= ${cartItems.quantity} or ${quantity} <= least(
+          ${MAX_QUANTITY}::int,
+          (select p.stock_quantity from products p
+            where p.id = ${cartItems.productId})
+          - coalesce((
+            select sum(ci.quantity)::int from cart_items ci
+            where ci.cart_id = ${cartItems.cartId}
+              and ci.product_id = ${cartItems.productId}
+              and ci.id <> ${cartItems.id}
+          ), 0)
+        ))`,
+      ),
+    )
+    .returning({ id: cartItems.id });
+  return rows.length > 0;
 }
 
 export async function removeItem(userId: string, itemId: string) {

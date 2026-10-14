@@ -54,11 +54,15 @@ export async function addToBag(
     if (!product.sizes.includes(size)) return { error: "Select a size." };
   }
 
-  await addItem(
-    user.id,
-    { productId: product.id, size, quantity: 1 },
-    Math.min(MAX_QUANTITY, product.stockQuantity),
-  );
+  const added = await addItem(user.id, {
+    productId: product.id,
+    size,
+    quantity: 1,
+  });
+  // Stock is shared by every size, so other sizes in the bag count too.
+  if (!added) {
+    return { error: "Your bag already holds all we have of this piece." };
+  }
 
   // Only the bag: the product page is static and shared by every visitor.
   revalidatePath("/bag");
@@ -81,7 +85,11 @@ export async function updateBagQuantity(
   }
 
   const user = await requireUser("/bag");
-  await setQuantity(user.id, itemId, quantity);
+  // False for a line that isn't the caller's too; both cases change nothing.
+  const updated = await setQuantity(user.id, itemId, quantity);
+  if (!updated) {
+    return { error: "There isn't enough stock for that quantity." };
+  }
   revalidatePath("/bag");
   return { error: null };
 }
