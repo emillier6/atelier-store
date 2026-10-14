@@ -13,8 +13,8 @@ import { fulfillmentLabels, fulfillmentTones } from "@/lib/fulfillment";
 import { shippingAddressOf } from "@/lib/shipping-address";
 import { getAdminOrder } from "@/lib/orders";
 import { requireAdmin } from "@/lib/session";
+import { stripePaymentUrl } from "@/lib/stripe";
 
-const STRIPE_PAYMENTS_URL = "https://dashboard.stripe.com/test/payments/";
 
 async function loadOrder(rawId: string) {
   const id = rawId.toLowerCase();
@@ -141,7 +141,7 @@ export default async function AdminOrderPage({
               </dl>
               {order.stripePaymentIntentId && (
                 <a
-                  href={`${STRIPE_PAYMENTS_URL}${encodeURIComponent(order.stripePaymentIntentId)}`}
+                  href={stripePaymentUrl(order.stripePaymentIntentId)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn btn-outline btn-sm self-start"

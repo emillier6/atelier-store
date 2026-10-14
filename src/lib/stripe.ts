@@ -29,3 +29,12 @@ export function appUrl() {
   if (!url) throw new Error("NEXT_PUBLIC_APP_URL is not set.");
   return url.replace(/\/$/, "");
 }
+
+/**
+ * A Dashboard link for a PaymentIntent, in the mode of the key in use: live
+ * keys (sk_live_) link to live payments, anything else to test mode.
+ */
+export function stripePaymentUrl(paymentIntentId: string) {
+  const live = process.env.STRIPE_SECRET_KEY?.trim().startsWith("sk_live_");
+  return `https://dashboard.stripe.com/${live ? "" : "test/"}payments/${encodeURIComponent(paymentIntentId)}`;
+}
