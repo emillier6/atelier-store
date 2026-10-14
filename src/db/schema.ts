@@ -247,6 +247,19 @@ export const cartItems = pgTable(
  * Orders
  * ------------------------------------------------------------------------ */
 
+/**
+ * unfulfilled: paid, not sent. shipped: handed to the carrier (shipped_at
+ * set). delivered: arrived (delivered_at set). cancelled: won't be sent;
+ * refund it in Stripe.
+ */
+export const fulfillmentStatuses = [
+  "unfulfilled",
+  "shipped",
+  "delivered",
+  "cancelled",
+] as const;
+export type FulfillmentStatus = (typeof fulfillmentStatuses)[number];
+
 /** One row per paid Stripe Checkout Session, written by the webhook. */
 export const orders = pgTable(
   "orders",
@@ -270,6 +283,34 @@ export const orders = pgTable(
     /** What Stripe charged; never recomputed from the lines. */
     totalCents: integer("total_cents").notNull(),
     currency: text("currency").default("usd").notNull(),
+    /*
+     * Where to send it, copied from Checkout at fulfilment so later changes
+     * on Stripe's side don't rewrite the order. Null on orders placed before
+     * addresses were collected. Not in the tutorial.
+     */
+    shippingName: text("shipping_name"),
+    shippingLine1: text("shipping_line1"),
+    shippingLine2: text("shipping_line2"),
+    shippingCity: text("shipping_city"),
+    shippingState: text("shipping_state"),
+    shippingPostalCode: text("shipping_postal_code"),
+    /** ISO 3166-1 alpha-2, e.g. "US", "GB". */
+    shippingCountry: text("shipping_country"),
+    /** Set by an admin; see fulfillmentStatuses. Not in the tutorial. */
+    fulfillmentStatus: text("fulfillment_status")
+      .$type<FulfillmentStatus>()
+      .default("unfulfilled")
+      .notNull(),
+    carrier: text("carrier"),
+    trackingNumber: text("tracking_number"),
+    shippedAt: timestamp("shipped_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    /**
+     * Total refunded so far, as Stripe reports it (charge.amount_refunded).
+     * Only ever raised, so a late or repeated webhook can't lower it.
+     */
+    refundedCents: integer("refunded_cents").default(0).notNull(),
+    refundedAt: timestamp("refunded_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -277,6 +318,22 @@ export const orders = pgTable(
   (table) => [
     index("orders_user_id_idx").on(table.userId),
     index("orders_created_at_idx").on(table.createdAt.desc()),
+    check(
+      "orders_fulfillment_status_check",
+      sql`${table.fulfillmentStatus} in ('unfulfilled', 'shipped', 'delivered', 'cancelled')`,
+    ),
+    check(
+      "orders_shipped_at_check",
+      sql`${table.fulfillmentStatus} not in ('shipped', 'delivered') or ${table.shippedAt} is not null`,
+    ),
+    check(
+      "orders_delivered_at_check",
+      sql`${table.fulfillmentStatus} <> 'delivered' or ${table.deliveredAt} is not null`,
+    ),
+    check(
+      "orders_refunded_cents_check",
+      sql`${table.refundedCents} >= 0 and ${table.refundedCents} <= ${table.totalCents}`,
+    ),
   ],
 );
 
