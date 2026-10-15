@@ -1,23 +1,7 @@
-/*
- * Refund amounts are often partial, so unlike formatPrice they keep the
- * cents when there are any: 2950 → "$29.50", 100 → "$1".
- */
+import { formatPrice } from "@/lib/format";
 
-const whole = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 0,
-});
-const exact = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-export function formatCents(cents: number) {
-  return (cents % 100 === 0 ? whole : exact).format(cents / 100);
-}
+/** Refund amounts use the shared format: 2950 → "$29.50", 100 → "$1". */
+export const formatCents = formatPrice;
 
 /** Cents as the amount field's text, e.g. 2950 → "29.50", 100 → "1". */
 export function centsToInput(cents: number) {
