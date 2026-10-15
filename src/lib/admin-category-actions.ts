@@ -87,6 +87,8 @@ export async function createCategory(
   }
 
   revalidateCatalogue(cataloguePaths({ categorySlugs: [input.value.slug] }));
+  // The header menu and home grid in the root layout list every category.
+  revalidatePath("/", "layout");
   revalidatePath(LIST_PATH);
   redirect(LIST_PATH);
 }
@@ -135,6 +137,8 @@ export async function updateCategory(
       categorySlugs: [existing.slug, input.value.slug],
     }),
   );
+  // The header menu and home grid in the root layout list every category.
+  revalidatePath("/", "layout");
   revalidatePath(LIST_PATH);
   revalidatePath(`${LIST_PATH}/${id}`);
 
@@ -183,6 +187,8 @@ export async function deleteCategory(
   if (!deleted) return { error: "This category no longer exists." };
 
   revalidateCatalogue(cataloguePaths({ categorySlugs: [deleted.slug] }));
+  // The header menu and home grid in the root layout list every category.
+  revalidatePath("/", "layout");
   revalidatePath(LIST_PATH);
   redirect(LIST_PATH);
 }

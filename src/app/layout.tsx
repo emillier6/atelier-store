@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Bodoni_Moda, Inter_Tight } from "next/font/google";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { getCategories } from "@/lib/products";
 import "./globals.css";
 
 // UI and body copy: tight grotesque with a light-to-bold weight range
@@ -25,14 +26,17 @@ export const viewport: Viewport = {
   themeColor: "#ffffff",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // The menu lists the real categories, so it follows edits in /admin.
+  const categories = await getCategories();
+
   return (
     <html
       lang="en"
       className={`${sans.variable} ${display.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <SiteHeader />
+        <SiteHeader categories={categories} />
         {children}
         <SiteFooter />
       </body>

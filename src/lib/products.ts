@@ -1,5 +1,5 @@
 // Catalog reads for Server Components. Returns the storefront `Product` shape.
-import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, ne, or, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
 import { categories, productImages, products } from "@/db/schema";
@@ -121,4 +121,89 @@ export async function getRelatedProducts(product: Product, limit = 4) {
     limit,
   });
   return toProducts(rows);
+}
+
+/**
+ * Active products in any of these categories, newest first. Used by the
+ * editorial edits, which pick their pieces by category.
+ */
+export async function getProductsInCategories(slugs: string[], limit = 12) {
+  if (slugs.length === 0) return [];
+  const list = sql.join(
+    slugs.map((slug) => sql`${slug}`),
+    sql`, `,
+  );
+  const rows = await db.query.products.findMany({
+    where: and(
+      sql`${products.categoryId} in (select c.id from categories c where c.slug in (${list}))`,
+      isActive,
+    ),
+    with: withRelations,
+    orderBy: [desc(products.createdAt)],
+    limit,
+  });
+  return toProducts(rows);
+}
+
+export const SEARCH_MAX_LENGTH = 80;
+
+/**
+ * Active products whose name, colour, SKU or category name contains the
+ * query (case-insensitive). LIKE wildcards in the query match literally.
+ */
+export async function searchProducts(query: string, limit = 48) {
+  const term = query.trim().slice(0, SEARCH_MAX_LENGTH);
+  if (!term) return [];
+  const pattern = `%${term.replace(/[\\%_]/g, "\\$&")}%`;
+  const rows = await db.query.products.findMany({
+    where: and(
+      isActive,
+      or(
+        ilike(products.name, pattern),
+        ilike(products.colour, pattern),
+        ilike(products.sku, pattern),
+        sql`${products.categoryId} in (select c.id from categories c where c.name ilike ${pattern})`,
+      ),
+    ),
+    with: withRelations,
+    orderBy: [desc(products.createdAt)],
+    limit,
+  });
+  return toProducts(rows);
+}
+
+export type CategoryCover = {
+  slug: string;
+  name: string;
+  image: { src: string; alt: string } | null;
+};
+
+/**
+ * Every category in house order, with the primary image of its newest active
+ * product as a cover (null when it has none on sale).
+ */
+export async function getCategoryCovers(): Promise<CategoryCover[]> {
+  const result = await db.execute<{
+    slug: string;
+    name: string;
+    url: string | null;
+    alt: string | null;
+  }>(sql`
+    select c.slug, c.name, cover.url, cover.alt
+    from categories c
+    left join lateral (
+      select pi.url, pi.alt
+      from products p
+      join product_images pi on pi.product_id = p.id and pi.position = 0
+      where p.category_id = c.id and p.status = 'active'
+      order by p.created_at desc
+      limit 1
+    ) cover on true
+    order by c.position, c.name
+  `);
+  return result.rows.map((row) => ({
+    slug: row.slug,
+    name: row.name,
+    image: row.url ? { src: row.url, alt: row.alt ?? row.name } : null,
+  }));
 }

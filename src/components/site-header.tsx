@@ -16,7 +16,7 @@ import {
   SearchIcon,
   UserIcon,
 } from "@/components/icons";
-import { primaryNav } from "@/components/site-nav";
+import { type NavCategory, primaryNav } from "@/components/site-nav";
 
 // Routes whose first section is a full-bleed image the header floats over.
 const OVERLAY_ROUTES = new Set(["/"]);
@@ -26,7 +26,8 @@ function subscribeToScroll(onChange: () => void) {
   return () => window.removeEventListener("scroll", onChange);
 }
 
-export function SiteHeader() {
+/** `categories` come from the root layout, so admin edits show in the menu. */
+export function SiteHeader({ categories }: { categories: NavCategory[] }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -90,12 +91,20 @@ export function SiteHeader() {
       {/* Pages without a hero start below the fixed header. */}
       {!hasOverlay && <div aria-hidden className="h-header shrink-0" />}
 
-      {menuOpen && <SiteMenu onClose={closeMenu} />}
+      {menuOpen && (
+        <SiteMenu categories={categories} onClose={closeMenu} />
+      )}
     </>
   );
 }
 
-function SiteMenu({ onClose }: { onClose: () => void }) {
+function SiteMenu({
+  categories,
+  onClose,
+}: {
+  categories: NavCategory[];
+  onClose: () => void;
+}) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -140,7 +149,7 @@ function SiteMenu({ onClose }: { onClose: () => void }) {
           aria-label="Primary"
           className="stack flex-1 gap-5 overflow-y-auto px-gutter py-8"
         >
-          {primaryNav.map((item) => (
+          {primaryNav(categories).map((item) => (
             <Link
               key={item.href}
               href={item.href}

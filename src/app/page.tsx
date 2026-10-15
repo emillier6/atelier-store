@@ -6,14 +6,19 @@ import { Intro } from "@/components/home/intro";
 import { NewArrivals } from "@/components/home/new-arrivals";
 import { ProductRail } from "@/components/home/product-rail";
 import { Services } from "@/components/home/services";
-import { getNewArrivals, getProductsByCategory } from "@/lib/products";
+import {
+  getCategoryCovers,
+  getNewArrivals,
+  getProductsByCategory,
+} from "@/lib/products";
 
 export const revalidate = 60;
 
 export default async function Home() {
-  const [newArrivals, readyToWear] = await Promise.all([
+  const [newArrivals, readyToWear, categories] = await Promise.all([
     getNewArrivals(),
     getProductsByCategory("ready-to-wear"),
+    getCategoryCovers(),
   ]);
 
   return (
@@ -30,7 +35,7 @@ export default async function Home() {
           href: "/collections/ready-to-wear",
         }}
       />
-      <CategoryGrid />
+      <CategoryGrid categories={categories} />
       <CraftStory />
       <Services />
     </main>

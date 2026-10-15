@@ -1,11 +1,15 @@
-export const primaryNav = [
-  { label: "New In", href: "/new-arrivals" },
-  { label: "Women", href: "/collections/women" },
-  { label: "Men", href: "/collections/men" },
-  { label: "Handbags", href: "/collections/handbags" },
-  { label: "Jewelry", href: "/collections/jewelry" },
-  { label: "Gifts", href: "/collections/gifts" },
-];
+export type NavCategory = { slug: string; name: string };
+
+/** New In, then every category in house order, as the admin set them. */
+export function primaryNav(categories: NavCategory[]) {
+  return [
+    { label: "New In", href: "/new-arrivals" },
+    ...categories.map((c) => ({
+      label: c.name,
+      href: `/collections/${c.slug}`,
+    })),
+  ];
+}
 
 export const footerNav = [
   {
