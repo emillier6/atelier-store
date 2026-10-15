@@ -32,47 +32,12 @@ export type Collection = {
 export const hero = {
   eyebrow: "Spring–Summer 2027",
   title: "Riviera",
-  cta: { label: "Discover the collection", href: "/collections/riviera" },
+  cta: { label: "Discover the collection", href: "/edits/riviera" },
   image: {
     src: unsplash("1496747611176-843222e1e57c"),
     alt: "Woman in a floral wrap dress walking along a sunlit seafront",
   },
 };
-
-export const categories: Collection[] = [
-  {
-    slug: "women",
-    title: "Women",
-    image: {
-      src: unsplash("1515886657613-9f3515b0c78f"),
-      alt: "Model in a saffron tracksuit against a pale blue sky",
-    },
-  },
-  {
-    slug: "men",
-    title: "Men",
-    image: {
-      src: unsplash("1617137968427-85924c800a22"),
-      alt: "Man in a navy tailored suit walking past a glass facade",
-    },
-  },
-  {
-    slug: "handbags",
-    title: "Handbags",
-    image: {
-      src: unsplash("1590874103328-eac38a683ce7"),
-      alt: "Woven top-handle bag in tan leather",
-    },
-  },
-  {
-    slug: "jewelry",
-    title: "Jewelry",
-    image: {
-      src: unsplash("1611591437281-460bfbe1220a"),
-      alt: "Gold chain bracelet on a blush background",
-    },
-  },
-];
 
 export const newArrivalsFeature: Collection = {
   slug: "new-in",
@@ -130,7 +95,7 @@ export const craftStory: Collection = {
 export const services = [
   {
     title: "Complimentary Shipping",
-    body: "Free express delivery and returns on every order.",
+    body: "Free delivery to the US, Canada, the UK and the EU.",
     cta: { label: "Learn more", href: "/services/shipping" },
   },
   {
@@ -142,5 +107,83 @@ export const services = [
     title: "Book an Appointment",
     body: "Shop in store or virtually with a client advisor.",
     cta: { label: "Book now", href: "/services/appointments" },
+  },
+];
+
+/**
+ * Editorial edits at /edits/[slug]: a lookbook intro over a selection of
+ * active pieces from the listed categories. The copy is placeholder text to
+ * replace; the pieces are live catalogue data.
+ */
+export type Edit = Collection & {
+  eyebrow: string;
+  intro: string[];
+  /** Categories the edit draws its pieces from, newest first. */
+  categorySlugs: string[];
+};
+
+export const edits: Edit[] = [
+  {
+    slug: "riviera",
+    eyebrow: hero.eyebrow,
+    title: hero.title,
+    image: hero.image,
+    intro: [
+      "Placeholder: a few lines on the season's mood, the coastline that inspired it and the fabrics that carry it.",
+      "Placeholder: a second paragraph on how to wear the pieces below, from the first warm morning to the last long evening.",
+    ],
+    categorySlugs: ["ready-to-wear", "eyewear", "shoes"],
+  },
+  ...editorialPair.map((story) => ({
+    ...story,
+    eyebrow: story.eyebrow ?? "The Edit",
+    intro: [
+      `Placeholder: an introduction to ${story.title}, what defines the edit and who it is for.`,
+      "Placeholder: a note on fit, fabric and the details worth looking for in the pieces below.",
+    ],
+    categorySlugs:
+      story.slug === "city-tailoring"
+        ? ["ready-to-wear", "shoes", "handbags"]
+        : ["ready-to-wear", "jewelry", "eyewear"],
+  })),
+];
+
+/**
+ * Long-form stories at /stories/[slug]. Copy is placeholder text to replace.
+ */
+export type Story = Collection & {
+  eyebrow: string;
+  description: string;
+  sections: { heading: string; body: string[]; image?: Media }[];
+};
+
+export const stories: Story[] = [
+  {
+    ...craftStory,
+    eyebrow: craftStory.eyebrow ?? "Craftsmanship",
+    description: craftStory.description ?? "",
+    sections: [
+      {
+        heading: "The materials",
+        body: [
+          "Placeholder: where the fibres and leathers come from, and why they were chosen.",
+          "Placeholder: how materials are tested for weight, hand and wear before a piece goes into production.",
+        ],
+        image: newArrivalsFeature.image,
+      },
+      {
+        heading: "The making",
+        body: [
+          "Placeholder: the steps from pattern to finished garment, and the hand-finishing that takes the longest.",
+          "Placeholder: the people in the workshop and how long they have been doing this work.",
+        ],
+      },
+      {
+        heading: "Made to last",
+        body: [
+          "Placeholder: how to care for each piece so it keeps its shape, and what the house does when something needs repair.",
+        ],
+      },
+    ],
   },
 ];

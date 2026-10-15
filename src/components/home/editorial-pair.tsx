@@ -8,7 +8,7 @@ export function EditorialPair() {
       {editorialPair.map((story) => (
         <Link
           key={story.slug}
-          href={`/collections/${story.slug}`}
+          href={`/edits/${story.slug}`}
           className="group relative block aspect-portrait overflow-hidden bg-surface text-on-media"
         >
           <Image
