@@ -20,7 +20,7 @@ Set these on the host. Never commit them; `.env.local` is for development only.
 | `BETTER_AUTH_SECRET` | A new random secret (e.g. `openssl rand -base64 32`). Don't reuse the dev one. Changing it later signs everyone out. |
 | `BETTER_AUTH_URL` | The site's public origin, e.g. `https://shop.example.com`. |
 | `NEXT_PUBLIC_APP_URL` | Same origin. It is also the base of Stripe's success and cancel URLs, so a wrong value sends paying customers to the wrong site. |
-| `STRIPE_SECRET_KEY` | The **live** secret key (`sk_live_…`), or better a restricted key with only the permissions the app uses (Checkout Sessions, PaymentIntents, Charges read, Refunds write). The admin's "View in Stripe" link follows the key's mode. |
+| `STRIPE_SECRET_KEY` | The **live** secret key (`sk_live_…`), or better a restricted key (`rk_live_…`) with only the permissions the app uses: Checkout Sessions and Refunds write; PaymentIntents, Charges and Products read. The admin's "View in Stripe" link follows the key's mode. |
 | `STRIPE_WEBHOOK_SECRET` | The signing secret of the **production webhook endpoint** (below), not the one `stripe listen` prints. |
 
 ## Database
@@ -29,9 +29,10 @@ Set these on the host. Never commit them; `.env.local` is for development only.
       `DATABASE_URL=<prod> pnpm db:migrate`. `pnpm build` queries the
       database (`/` and `generateStaticParams`), so it needs the migrated
       schema.
-- [ ] **Never run `pnpm db:seed` against production.** It deletes every
-      category, product and image, empties every bag and unlinks order
-      lines from their products.
+- [ ] **`pnpm db:seed` only on an empty production database, before
+      launch**, to load the sample catalogue. Never once customers or orders
+      exist: it deletes every category, product and image, empties every bag
+      and unlinks order lines from their products.
 - [ ] Never `pnpm db:push`. Migrations only.
 - [ ] Load the real catalogue through `/admin` (categories, then products
       with images; products start as drafts and need an image to go active).
@@ -103,4 +104,8 @@ Set these on the host. Never commit them; `.env.local` is for development only.
 - No emails: no order confirmation, shipping notice or password reset.
 - No guest checkout; one shared stock count per product (no per-size stock).
 - Changing a product or collection slug breaks the old URL (no redirects).
-- The home page's category grid is a fixed list in `src/lib/catalog.ts`.
+- The home page's ready-to-wear rail and the editorial edits pick pieces by
+  category slug, so renaming those categories empties them.
+- Information pages (`src/lib/content-pages.ts`) and editorial copy still
+  carry visible placeholders; the terms of sale and privacy policy must be
+  written before real orders.
